@@ -1,0 +1,31 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- gauge arc -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000"
+        android:pathData="M30,72 A24,24 0 0,1 78,72" />
+
+    <!-- needle -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,72 L72,42 L60,40 Z" />
+
+    <!-- pivot dot -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,72 m-5,0 a5,5 0 1,0 10,0 a5,5 0 1,0 -10,0" />
+
+    <!-- tick marks -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000"
+        android:pathData="M30,72 L26,72 M78,72 L82,72 M54,42 L54,38" />
+</vector>
