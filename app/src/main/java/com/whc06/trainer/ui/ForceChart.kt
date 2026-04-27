@@ -108,18 +108,30 @@ fun ForceChart(
             }
         }
 
-        val path = Path()
-        var first = true
+        val pts = ArrayList<Offset>(samples.size)
         for ((ts, kg) in samples) {
             if (ts < tMin) continue
             val x = ((ts - tMin).toFloat() / windowMs.toFloat()) * plotW
             val y = h - (kg / effectiveMax).coerceIn(0.0, 1.0).toFloat() * h
-            if (first) {
-                path.moveTo(x, y); first = false
-            } else {
-                path.lineTo(x, y)
-            }
+            pts.add(Offset(x, y))
         }
-        drawPath(path, accent, style = Stroke(width = 4f))
+        if (pts.isNotEmpty()) {
+            val path = Path()
+            if (pts.size == 1) {
+                path.moveTo(pts[0].x, pts[0].y)
+                path.lineTo(pts[0].x, pts[0].y)
+            } else {
+                path.moveTo(pts[0].x, pts[0].y)
+                for (i in 1 until pts.size) {
+                    val prev = pts[i - 1]
+                    val curr = pts[i]
+                    val midX = (prev.x + curr.x) / 2f
+                    val midY = (prev.y + curr.y) / 2f
+                    path.quadraticBezierTo(prev.x, prev.y, midX, midY)
+                }
+                path.lineTo(pts.last().x, pts.last().y)
+            }
+            drawPath(path, accent, style = Stroke(width = 4f))
+        }
     }
 }

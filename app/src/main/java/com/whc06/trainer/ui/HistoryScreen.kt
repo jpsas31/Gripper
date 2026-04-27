@@ -6,11 +6,15 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,8 +35,44 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
     val prs = remember(sessions) { computePRs(sessions) }
     val byProgram = remember(sessions) { sessions.groupBy { it.programName } }
 
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear all history?") },
+            text = { Text("Deletes all ${sessions.size} saved session(s). Cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.clearHistory()
+                    confirmClear = false
+                }) { Text("Clear", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+            }
+        )
+    }
+
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        Text("History", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "History",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                modifier = Modifier.weight(1f)
+            )
+            if (sessions.isNotEmpty()) {
+                TextButton(onClick = { confirmClear = true }) {
+                    Icon(
+                        Icons.Outlined.DeleteSweep,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text("Clear", fontSize = 13.sp)
+                }
+            }
+        }
         Spacer(Modifier.height(12.dp))
         if (sessions.isEmpty()) {
             EmptyHistoryCard()

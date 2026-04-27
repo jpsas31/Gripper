@@ -284,6 +284,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { repo.deletePreset(id) }
     }
 
+    fun clearHistory() {
+        viewModelScope.launch { repo.deleteAllSessions() }
+    }
+
+    fun clearChartHistory() {
+        recentSamples.clear()
+    }
+
     fun decodePeaks(json: String) = repo.decodePeaks(json)
 
     private fun onSample(s: WhC06Parser.Sample) {

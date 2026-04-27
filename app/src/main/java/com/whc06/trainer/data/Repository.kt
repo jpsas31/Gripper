@@ -73,6 +73,8 @@ class Repository(private val ctx: Context) {
         )
     }
 
+    suspend fun deleteAllSessions() = sessionDao.deleteAll()
+
     fun decodePeaks(s: String): List<Double> = try {
         jsonCodec.decodeFromString(peaksSerializer, s)
     } catch (_: Exception) { emptyList() }
