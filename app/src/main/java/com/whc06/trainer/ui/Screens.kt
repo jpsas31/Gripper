@@ -9,8 +9,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.LocalFireDepartment
+import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material3.*
@@ -187,68 +190,123 @@ fun LiveScreen(vm: MainViewModel) {
     ) {
         Row(
             Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             HandSelector(hand) { vm.selectHand(it) }
-            Spacer(Modifier.width(6.dp))
             GripSelector(grip) { vm.selectGrip(it) }
             Spacer(Modifier.weight(1f))
-            Text(
-                if (stable) "●" else "○",
-                color = if (stable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
-                fontSize = 18.sp
-            )
+            StableIndicator(stable)
         }
 
-        if (scanState != BleScanner.State.SCANNING) {
-            EmptyStateCard(
-                title = "Not connected",
-                body = "Power on WH-C06 and tap Scan above."
-            )
-        } else if (mvc <= 0) {
+        if (scanState == BleScanner.State.SCANNING && mvc <= 0) {
             EmptyStateCard(
                 title = "Set your MVC first",
                 body = "Pull max effort → tap Save MVC."
             )
         }
 
-        ForceGauge(
-            kg = kg, peakKg = peak,
-            targetKg = if (targetKg > 0) targetKg else null,
-            zoneTolerancePct = zoneTol,
-            height = 280.dp
-        )
-
-        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Box(
+            Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            ForceGauge(
+                kg = kg, peakKg = peak,
+                targetKg = if (targetKg > 0) targetKg else null,
+                zoneTolerancePct = zoneTol,
+                height = 280.dp
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.offset(y = 20.dp)
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Peak %.1f kg".format(peak),
-                        fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text("MVC ${hand.name.lowercase()}: %.1f kg".format(mvc),
-                        fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
-                    if (targetKg > 0) {
-                        Text("Zone %.1fs · target %.1f kg".format(tiz / 1000.0, targetKg),
-                            fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
+                Text(
+                    "%.1f".format(kg),
+                    fontSize = 56.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text("kg", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        if (mvc <= 0) {
+            Button(
+                onClick = { vm.saveCurrentPeakAsMvc() },
+                enabled = peak > 0,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (peak > 0) "Save MVC (%.1f kg)".format(peak) else "Pull max effort to save MVC")
+            }
+        } else {
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Peak %.1f kg".format(peak),
+                            fontSize = 22.sp, fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            "MVC (${hand.name.lowercase()}): %.1f kg".format(mvc),
+                            fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
+                        )
+                        if (targetKg > 0) {
+                            Text(
+                                "Zone %.1fs · target %.1f kg".format(tiz / 1000.0, targetKg),
+                                fontSize = 11.sp, color = MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
+                    FilledTonalButton(
+                        onClick = { vm.saveCurrentPeakAsMvc() },
+                        enabled = peak > 0
+                    ) { Text("Update MVC") }
                 }
-                FilledTonalButton(
-                    onClick = { vm.saveCurrentPeakAsMvc() },
-                    enabled = peak > 0
-                ) { Text("Save MVC") }
             }
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.tare() }, modifier = Modifier.weight(1f)) {
+                Icon(
+                    Icons.Outlined.RestartAlt,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
                 Text("Tare")
             }
             OutlinedButton(onClick = { vm.resetPeak() }, modifier = Modifier.weight(1f)) {
+                Icon(
+                    Icons.Outlined.Refresh,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(6.dp))
                 Text("Reset Peak")
             }
         }
+    }
+}
+
+@Composable
+private fun StableIndicator(stable: Boolean) {
+    val color = if (stable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (stable) "●" else "○",
+            color = color,
+            fontSize = 14.sp
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(
+            if (stable) "Stable" else "Settling",
+            color = color,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
@@ -266,13 +324,27 @@ private fun EmptyStateCard(title: String, body: String) {
 
 @Composable
 private fun HandSelector(selected: Hand, onSelect: (Hand) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-        Hand.entries.forEach { h ->
-            FilterChip(
-                selected = h == selected,
-                onClick = { onSelect(h) },
-                label = { Text(h.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp) }
-            )
+    var expanded by remember { mutableStateOf(false) }
+    val label = selected.name.lowercase().replaceFirstChar { it.uppercase() }
+    Box {
+        AssistChip(
+            onClick = { expanded = true },
+            label = { Text(label, fontSize = 12.sp) },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            Hand.entries.forEach { h ->
+                DropdownMenuItem(
+                    text = { Text(h.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                    onClick = { onSelect(h); expanded = false }
+                )
+            }
         }
     }
 }
@@ -281,10 +353,16 @@ private fun HandSelector(selected: Hand, onSelect: (Hand) -> Unit) {
 private fun GripSelector(selected: GripType, onSelect: (GripType) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        FilterChip(
-            selected = true,
+        AssistChip(
             onClick = { expanded = true },
-            label = { Text(selected.display, fontSize = 12.sp) }
+            label = { Text(selected.display, fontSize = 12.sp) },
+            trailingIcon = {
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             GripType.entries.forEach { g ->
