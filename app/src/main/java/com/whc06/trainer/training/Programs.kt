@@ -199,9 +199,9 @@ object ProgramLibrary {
 
     val WARMUP = Program(
         id = "prg_warmup",
-        name = "Warmup",
+        name = "Progressive Warmup",
         category = Category.WARMUP,
-        description = "5 progressive pulls at 40/50/60/70/80% MVC.",
+        description = "5 progressive pulls at 40/50/60/70/80% MVC. 5s on, 30s rest.",
         audience = Audience.entries.toList(),
         sets = listOf(40, 50, 60, 70, 80).map { pct ->
             TrainingSet(
@@ -209,6 +209,91 @@ object ProgramLibrary {
                 restAfterMs = 30_000L
             )
         }
+    )
+
+    val WARMUP_PULSE_ACTIVATION = Program(
+        id = "prg_warmup_pulse",
+        name = "Pulse Activation",
+        category = Category.WARMUP,
+        description = "3 sets × 4 short pulses @ 50% MVC. 5s on / 5s off, 45s between sets. Quick blood-flow primer.",
+        audience = Audience.entries.toList(),
+        sets = List(3) {
+            TrainingSet(
+                phases = buildList {
+                    repeat(4) { i ->
+                        add(work("Pulse ${i + 1}/4", 5, 50))
+                        if (i < 3) add(rest(5))
+                    }
+                },
+                restAfterMs = 45_000L
+            )
+        },
+        notes = "Power Company / standard crag warmup. Open-hand grip recommended."
+    )
+
+    val WARMUP_RECRUITMENT_RAMP = Program(
+        id = "prg_warmup_recruit",
+        name = "Recruitment Ramp",
+        category = Category.WARMUP,
+        description = "4 single pulls at 70/75/80/85% MVC. 5s on, 90s rest. CNS prep before max-effort work.",
+        audience = listOf(Audience.CLIMBING, Audience.ARM_WRESTLING, Audience.WEIGHT_TRAINING),
+        sets = listOf(70, 75, 80, 85).map { pct ->
+            TrainingSet(
+                phases = listOf(work("Pull @${pct}%", 5, pct)),
+                restAfterMs = 90_000L
+            )
+        },
+        notes = "Hörst / Tyler Nelson recruitment hangs. Use as final ramp before MaxHangs or limit work."
+    )
+
+    val WARMUP_REPEATER_LITE = Program(
+        id = "prg_warmup_rep_lite",
+        name = "Repeater Lite",
+        category = Category.WARMUP,
+        description = "2 sets × 6 reps. 7s on / 3s off @ 60% MVC. 2min rest between sets.",
+        audience = listOf(Audience.CLIMBING),
+        sets = List(2) {
+            TrainingSet(
+                phases = buildList {
+                    repeat(6) { i ->
+                        add(work("Pull ${i + 1}/6", 7, 60))
+                        if (i < 5) add(rest(3))
+                    }
+                },
+                restAfterMs = 120_000L
+            )
+        },
+        notes = "Sub-max repeater pattern to prime forearm endurance system before main repeaters."
+    )
+
+    val WARMUP_SHORT_MAX_PULSES = Program(
+        id = "prg_warmup_short_max",
+        name = "Short Max Pulses",
+        category = Category.WARMUP,
+        description = "5 reps × 3s @ 75% MVC. 30s rest. Wakes up high-threshold motor units.",
+        audience = listOf(Audience.CLIMBING, Audience.ARM_WRESTLING, Audience.MEASURE_STRENGTH),
+        sets = List(5) { idx ->
+            TrainingSet(
+                phases = listOf(work("Pulse ${idx + 1}/5", 3, 75)),
+                restAfterMs = 30_000L
+            )
+        },
+        notes = "Short duration keeps fatigue minimal. Use right before max-effort assessments."
+    )
+
+    val WARMUP_TENDON_PRIMER = Program(
+        id = "prg_warmup_tendon",
+        name = "Tendon Primer",
+        category = Category.WARMUP,
+        description = "2 × 30s low-intensity holds @ 45% MVC. 60s rest. Long isometric tissue prep.",
+        audience = listOf(Audience.CLIMBING),
+        sets = List(2) { idx ->
+            TrainingSet(
+                phases = listOf(work("Hold ${idx + 1}/2", 30, 45)),
+                restAfterMs = 60_000L
+            )
+        },
+        notes = "Open-hand grip. Submax sustained loading to prep collagen / pulleys."
     )
 
     val MAX_FORCE = Program(
@@ -479,6 +564,11 @@ object ProgramLibrary {
         ENDURANCE_TARGET_ZONE,
         // Warmup
         WARMUP,
+        WARMUP_PULSE_ACTIVATION,
+        WARMUP_RECRUITMENT_RAMP,
+        WARMUP_REPEATER_LITE,
+        WARMUP_SHORT_MAX_PULSES,
+        WARMUP_TENDON_PRIMER,
         // Strength training
         MAX_FORCE,
         HORST_7_53,
