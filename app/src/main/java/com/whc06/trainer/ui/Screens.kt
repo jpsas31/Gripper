@@ -303,31 +303,37 @@ fun ProgramsScreen(vm: MainViewModel, onRun: (Program) -> Unit) {
     val all = vm.programs
     val visible = filter?.let { f -> all.filter { it.category == f } } ?: all
 
+    val tabs = buildList {
+        add(null)
+        addAll(Category.entries)
+    }
+    val selectedIndex = tabs.indexOf(filter).coerceAtLeast(0)
+
     Column(Modifier.fillMaxSize()) {
-        androidx.compose.foundation.lazy.LazyRow(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            contentPadding = PaddingValues(horizontal = 4.dp)
+        ScrollableTabRow(
+            selectedTabIndex = selectedIndex,
+            edgePadding = 8.dp
         ) {
-            item {
-                FilterChip(
-                    selected = filter == null,
-                    onClick = { filter = null },
-                    label = { Text("All", fontSize = 12.sp) }
-                )
-            }
-            items(Category.entries.toList()) { c ->
-                FilterChip(
-                    selected = filter == c,
+            tabs.forEachIndexed { idx, c ->
+                androidx.compose.material3.Tab(
+                    selected = selectedIndex == idx,
                     onClick = { filter = c },
-                    label = { Text(c.display, fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = c.icon,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Color(c.tagColor)
+                    text = {
+                        Text(
+                            c?.display ?: "All",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
+                    },
+                    icon = c?.let {
+                        {
+                            Icon(
+                                imageVector = it.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color(it.tagColor)
+                            )
+                        }
                     }
                 )
             }
