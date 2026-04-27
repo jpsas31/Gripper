@@ -21,7 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.whc06.trainer.training.Program
-import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun SessionScreen(vm: MainViewModel, program: Program, onClose: () -> Unit) {
@@ -108,115 +107,104 @@ private fun ActiveLayer(
     zoneTol: Int,
     onClose: () -> Unit
 ) {
-    val snackbarHost = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) {
-        vm.repCompleteEvents.collectLatest { (idx, peak) ->
-            snackbarHost.showSnackbar("Rep ${idx + 1}: %.1f kg".format(peak))
-        }
-    }
-
-    Scaffold(snackbarHost = { SnackbarHost(snackbarHost) }) { padding ->
-        Column(
-            Modifier.padding(padding).fillMaxSize().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Phase header — big rep counter, small subline
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    val bigLabel = when {
-                        !st.running -> program.name
-                        st.isWork && st.totalWorkReps > 0 ->
-                            "Rep ${st.workRepsCompleted + 1}/${st.totalWorkReps}"
-                        st.phaseLabel.isNotEmpty() -> st.phaseLabel
-                        else -> program.name
-                    }
-                    Text(
-                        bigLabel,
-                        fontSize = if (!st.running) 22.sp else 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                    val parts = buildList {
-                        add("Set ${st.setIndex + 1}/${st.totalSets}")
-                        targetPctMvc?.let { add("${it}% MVC") }
-                        if (st.running && !st.isWork && st.phaseLabel.isNotEmpty()) add(st.phaseLabel)
-                    }
-                    Text(
-                        parts.joinToString(" · "),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    Column(
+        Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Phase header — big rep counter, small subline
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                val bigLabel = when {
+                    !st.running -> program.name
+                    st.isWork && st.totalWorkReps > 0 ->
+                        "Rep ${st.workRepsCompleted + 1}/${st.totalWorkReps}"
+                    st.phaseLabel.isNotEmpty() -> st.phaseLabel
+                    else -> program.name
                 }
-                if (st.running) {
-                    val remainingSec = ((st.phaseTotalMs - st.phaseElapsedMs) / 1000.0).coerceAtLeast(0.0)
-                    Text(
-                        "%.1fs".format(remainingSec),
-                        fontSize = 36.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (st.isWork) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outline
-                    )
+                Text(
+                    bigLabel,
+                    fontSize = if (!st.running) 22.sp else 30.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1
+                )
+                val parts = buildList {
+                    add("Set ${st.setIndex + 1}/${st.totalSets}")
+                    targetPctMvc?.let { add("${it}% MVC") }
+                    if (st.running && !st.isWork && st.phaseLabel.isNotEmpty()) add(st.phaseLabel)
                 }
-            }
-
-            if (st.running) {
-                val progress = if (st.phaseTotalMs > 0) (st.phaseElapsedMs.toFloat() / st.phaseTotalMs) else 0f
-                LinearProgressIndicator(
-                    progress = { progress.coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50))
+                Text(
+                    parts.joinToString(" · "),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            if (st.running) {
+                val remainingSec = ((st.phaseTotalMs - st.phaseElapsedMs) / 1000.0).coerceAtLeast(0.0)
+                Text(
+                    "%.1fs".format(remainingSec),
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (st.isWork) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.outline
+                )
+            }
+        }
 
-            ForceGauge(
-                kg = kg,
-                peakKg = st.peakKgInPhase,
-                targetKg = targetKg,
-                zoneTolerancePct = zoneTol,
-                height = 240.dp
+        if (st.running) {
+            val progress = if (st.phaseTotalMs > 0) (st.phaseElapsedMs.toFloat() / st.phaseTotalMs) else 0f
+            LinearProgressIndicator(
+                progress = { progress.coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50))
             )
+        }
 
-            ForceChart(
-                samples = vm.recentSamples.toList(),
-                targetKg = targetKg,
-                zoneTolerancePct = zoneTol,
-                windowMs = (program.totalDurationMs.coerceIn(20_000L, 120_000L)),
-                height = 90.dp
-            )
+        ForceGauge(
+            kg = kg,
+            peakKg = st.peakKgInPhase,
+            targetKg = targetKg,
+            zoneTolerancePct = zoneTol,
+            height = 200.dp
+        )
 
-            Spacer(Modifier.weight(1f))
+        ForceChart(
+            samples = vm.recentSamples.toList(),
+            targetKg = targetKg,
+            zoneTolerancePct = zoneTol,
+            windowMs = (program.totalDurationMs.coerceIn(20_000L, 120_000L)),
+            modifier = Modifier.weight(1f).fillMaxWidth()
+        )
 
-            // Action bar — sticky bottom
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                if (!st.running) {
-                    Button(onClick = { vm.startSession() }, modifier = Modifier.weight(1f)) {
-                        Text("Start")
-                    }
-                    OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) {
-                        Text("Close")
+        // Action bar — sticky bottom
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (!st.running) {
+                Button(onClick = { vm.startSession() }, modifier = Modifier.weight(1f)) {
+                    Text("Start")
+                }
+                OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) {
+                    Text("Close")
+                }
+            } else {
+                if (st.paused) {
+                    Button(onClick = { vm.resumeSession() }, modifier = Modifier.weight(1f)) {
+                        Text("Resume")
                     }
                 } else {
-                    if (st.paused) {
-                        Button(onClick = { vm.resumeSession() }, modifier = Modifier.weight(1f)) {
-                            Text("Resume")
-                        }
-                    } else {
-                        OutlinedButton(onClick = { vm.pauseSession() }, modifier = Modifier.weight(1f)) {
-                            Text("Pause")
-                        }
+                    OutlinedButton(onClick = { vm.pauseSession() }, modifier = Modifier.weight(1f)) {
+                        Text("Pause")
                     }
-                    OutlinedButton(onClick = { vm.skipPhase() }, modifier = Modifier.weight(1f)) {
-                        Text("Skip")
-                    }
-                    Button(
-                        onClick = { vm.stopSession() },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Stop") }
                 }
+                OutlinedButton(onClick = { vm.skipPhase() }, modifier = Modifier.weight(1f)) {
+                    Text("Skip")
+                }
+                Button(
+                    onClick = { vm.stopSession() },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Stop") }
             }
         }
     }

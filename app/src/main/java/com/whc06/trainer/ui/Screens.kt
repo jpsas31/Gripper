@@ -433,7 +433,7 @@ fun SettingsScreen(vm: MainViewModel) {
         }
 
         SettingsCard("About") {
-            Text("WH-C06 Trainer · POC", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("Gripper · POC", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             Text("Sample rate ~5-10 Hz limited by BLE adv interval. RFD measurements unreliable.",
                 fontSize = 11.sp, color = MaterialTheme.colorScheme.outline)
         }

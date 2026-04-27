@@ -12,6 +12,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.Surface
+import androidx.compose.ui.Modifier
 import com.whc06.trainer.ui.AppRoot
 import com.whc06.trainer.ui.MainViewModel
 import com.whc06.trainer.ui.theme.WhC06TrainerTheme
@@ -28,7 +32,7 @@ class MainActivity : ComponentActivity() {
             val sb = denied.joinToString(", ") { it.substringAfterLast('.') }
             android.widget.Toast.makeText(
                 this,
-                "Permissions denied: $sb. Open Settings → Apps → WH-C06 Trainer → Permissions.",
+                "Permissions denied: $sb. Open Settings → Apps → Gripper → Permissions.",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
@@ -39,11 +43,13 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
             WhC06TrainerTheme {
-                AppRoot(
-                    vm = vm,
-                    onPermissionsNeeded = ::requestBlePermissions,
-                    onRequestBluetoothEnable = ::requestBluetoothEnable
-                )
+                Surface(Modifier.fillMaxSize().statusBarsPadding()) {
+                    AppRoot(
+                        vm = vm,
+                        onPermissionsNeeded = ::requestBlePermissions,
+                        onRequestBluetoothEnable = ::requestBluetoothEnable
+                    )
+                }
             }
         }
     }

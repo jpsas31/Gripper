@@ -1,4 +1,4 @@
-# WH-C06 Trainer
+# Gripper
 
 Personal Android POC. Reads Weiheng WH-C06 hanging scale via BLE advertisement, runs finger-strength training programs (MVC, Critical Force, Repeaters, Max Force, Endurance, etc.).
 
@@ -57,9 +57,3 @@ MainActivity.kt    — single-activity Compose host
 - RFD assessments removed — sample rate too low.
 - Manufacturer ID 256 = TomTom-squatted, may false-trigger on rare TomTom devices.
 - No persistence yet — sessions lost on app close. Add Room DB later.
-
-## References
-
-- Stevie-Ray/hangtime-grip-connect — WH-C06 protocol (TS).
-- sebws/Crane — iOS reference implementation.
-- Frez (Flutter, closed-source) — program structure inspiration.

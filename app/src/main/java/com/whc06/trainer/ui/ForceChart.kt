@@ -22,15 +22,14 @@ fun ForceChart(
     autoScale: Boolean = true,
     maxScaleKg: Double = 100.0,
     windowMs: Long = 30_000L,
-    height: Dp = 140.dp,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier.height(140.dp)
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val targetColor = MaterialTheme.colorScheme.secondary
     val grid = MaterialTheme.colorScheme.outlineVariant
     val zoneFill = Color(0x4040E0D0)
 
-    Canvas(modifier.fillMaxWidth().height(height)) {
+    Canvas(modifier.fillMaxWidth()) {
         val w = size.width
         val h = size.height
         if (samples.isEmpty()) return@Canvas
