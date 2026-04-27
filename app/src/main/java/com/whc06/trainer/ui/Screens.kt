@@ -181,7 +181,20 @@ fun LiveScreen(vm: MainViewModel) {
     val targetKg by vm.targetKg.collectAsState()
     val zoneTol by vm.zoneTolerancePct.collectAsState()
     val tiz by vm.timeInZoneMs.collectAsState()
-    val scanState by vm.scanState.collectAsState()
+    val hz by vm.packetsPerSec.collectAsState()
+
+    val samples = vm.recentSamples.toList()
+    val avgKg10s = remember(samples) {
+        if (samples.isEmpty()) 0.0
+        else {
+            val tMax = samples.last().first
+            val window = samples.filter { it.first >= tMax - 10_000L }
+            if (window.isEmpty()) 0.0 else window.sumOf { it.second } / window.size
+        }
+    }
+    val targetPctMvc = remember(targetKg, mvc) {
+        if (mvc > 0 && targetKg > 0) ((targetKg / mvc) * 100).toInt() else null
+    }
 
     Column(
         Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -196,22 +209,43 @@ fun LiveScreen(vm: MainViewModel) {
             HandSelector(hand) { vm.selectHand(it) }
             GripSelector(grip) { vm.selectGrip(it) }
             Spacer(Modifier.weight(1f))
-            StableIndicator(stable)
+            StableIndicator(stable, hz)
         }
 
-        if (scanState == BleScanner.State.SCANNING && mvc <= 0) {
-            EmptyStateCard(
-                title = "Set your MVC first",
-                body = "Pull max effort → tap Save MVC."
-            )
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(
+                        "%.1f".format(kg),
+                        fontSize = 64.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "kg",
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                ForceChart(
+                    samples = samples,
+                    targetKg = if (targetKg > 0) targetKg else null,
+                    targetPctMvc = targetPctMvc,
+                    zoneTolerancePct = zoneTol,
+                    windowMs = 30_000L,
+                    lineColor = handTraceColor(hand),
+                    modifier = Modifier.fillMaxWidth().height(160.dp)
+                )
+            }
         }
 
-        ForceGauge(
-            kg = kg, peakKg = peak,
-            targetKg = if (targetKg > 0) targetKg else null,
-            zoneTolerancePct = zoneTol,
-            height = 280.dp
-        )
+        StatsGrid(peak = peak, avg = avgKg10s, tizSec = tiz / 1000.0)
 
         if (mvc <= 0) {
             Button(
@@ -229,17 +263,16 @@ fun LiveScreen(vm: MainViewModel) {
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            "Peak %.1f kg".format(peak),
-                            fontSize = 22.sp, fontWeight = FontWeight.Bold
-                        )
-                        Text(
                             "MVC (${hand.name.lowercase()}): %.1f kg".format(mvc),
-                            fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.secondary
                         )
                         if (targetKg > 0) {
                             Text(
-                                "Zone %.1fs · target %.1f kg".format(tiz / 1000.0, targetKg),
-                                fontSize = 11.sp, color = MaterialTheme.colorScheme.outline
+                                "Target %.1f kg".format(targetKg),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.outline
                             )
                         }
                     }
@@ -275,7 +308,7 @@ fun LiveScreen(vm: MainViewModel) {
 }
 
 @Composable
-private fun StableIndicator(stable: Boolean) {
+private fun StableIndicator(stable: Boolean, hz: Double) {
     val color = if (stable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
@@ -284,13 +317,74 @@ private fun StableIndicator(stable: Boolean) {
             fontSize = 14.sp
         )
         Spacer(Modifier.width(4.dp))
-        Text(
-            if (stable) "Stable" else "Settling",
-            color = color,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Medium
-        )
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                if (stable) "Stable" else "Settling",
+                color = color,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+            if (hz > 0) {
+                Text(
+                    "%.1f Hz".format(hz),
+                    color = MaterialTheme.colorScheme.outline,
+                    fontSize = 9.sp
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun StatsGrid(peak: Double, avg: Double, tizSec: Double) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatCell("PEAK", "%.1f".format(peak), "kg", Modifier.weight(1f))
+        StatCell("AVG (10s)", "%.1f".format(avg), "kg", Modifier.weight(1f))
+        StatCell("IN ZONE", "%.1f".format(tizSec), "s", Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatCell(label: String, value: String, unit: String, modifier: Modifier = Modifier) {
+    ElevatedCard(modifier = modifier) {
+        Column(
+            Modifier.padding(vertical = 10.dp, horizontal = 12.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.outline,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    value,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.width(3.dp))
+                Text(
+                    unit,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 3.dp)
+                )
+            }
+        }
+    }
+}
+
+internal fun handTraceColor(h: Hand): Color = when (h) {
+    Hand.LEFT -> Color(0xFF34C759)
+    Hand.RIGHT -> Color(0xFFFF3B30)
+    Hand.BOTH -> Color(0xFFFF8B57)
 }
 
 @Composable
