@@ -183,7 +183,7 @@ object ProgramLibrary {
 
     val ENDURANCE_ASSESSMENT = Program(
         id = "asmt_endurance",
-        name = "Endurance",
+        name = "Endurance — Time to Failure",
         category = Category.ASSESSMENT,
         description = "Hold target % MVC until failure. Time-to-failure tracked.",
         audience = listOf(Audience.CLIMBING, Audience.WEIGHT_TRAINING),
@@ -336,7 +336,7 @@ object ProgramLibrary {
 
     val ENDURANCE_TRAINING = Program(
         id = "prg_endurance",
-        name = "Endurance",
+        name = "Endurance Intervals",
         category = Category.TRAINING,
         description = "10s on / 5s off × 6 reps × 3 sets at 60% MVC.",
         audience = listOf(Audience.CLIMBING, Audience.WEIGHT_TRAINING),
