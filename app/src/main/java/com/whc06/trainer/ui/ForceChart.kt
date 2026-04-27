@@ -1,8 +1,8 @@
 package com.whc06.trainer.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -11,25 +11,24 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 @Composable
 fun ForceChart(
     samples: List<Pair<Long, Double>>,
-    targetKg: Double?,
+    modifier: Modifier = Modifier,
+    targetKg: Double? = null,
     zoneTolerancePct: Int = 5,
     autoScale: Boolean = true,
     maxScaleKg: Double = 100.0,
-    windowMs: Long = 30_000L,
-    modifier: Modifier = Modifier.height(140.dp)
+    windowMs: Long = 30_000L
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val targetColor = MaterialTheme.colorScheme.secondary
     val grid = MaterialTheme.colorScheme.outlineVariant
     val zoneFill = Color(0x4040E0D0)
 
-    Canvas(modifier.fillMaxWidth()) {
+    Canvas(modifier.fillMaxWidth().defaultMinSize(minHeight = 140.dp)) {
         val w = size.width
         val h = size.height
         if (samples.isEmpty()) return@Canvas

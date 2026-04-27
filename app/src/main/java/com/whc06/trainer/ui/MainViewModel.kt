@@ -1,5 +1,6 @@
 package com.whc06.trainer.ui
 
+import android.annotation.SuppressLint
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -155,10 +156,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         super.onCleared()
     }
 
+    @SuppressLint("MissingPermission")
     fun startScan() {
         ScannerService.start(getApplication())
         scanner.start()
     }
+    @SuppressLint("MissingPermission")
     fun stopScan() {
         scanner.stop()
         ScannerService.stop(getApplication())
