@@ -206,29 +206,12 @@ fun LiveScreen(vm: MainViewModel) {
             )
         }
 
-        Box(
-            Modifier.fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            ForceGauge(
-                kg = kg, peakKg = peak,
-                targetKg = if (targetKg > 0) targetKg else null,
-                zoneTolerancePct = zoneTol,
-                height = 280.dp
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.offset(y = 20.dp)
-            ) {
-                Text(
-                    "%.1f".format(kg),
-                    fontSize = 56.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text("kg", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        ForceGauge(
+            kg = kg, peakKg = peak,
+            targetKg = if (targetKg > 0) targetKg else null,
+            zoneTolerancePct = zoneTol,
+            height = 280.dp
+        )
 
         if (mvc <= 0) {
             Button(
