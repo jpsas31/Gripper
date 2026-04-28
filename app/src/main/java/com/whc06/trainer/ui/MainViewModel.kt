@@ -125,6 +125,39 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val mvcRecords: StateFlow<List<MvcRecordEntity>> =
         repo.mvcRecords.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    private val _partyPlayers = MutableStateFlow<List<PartyPlayer>>(emptyList())
+    val partyPlayers: StateFlow<List<PartyPlayer>> = _partyPlayers.asStateFlow()
+
+    fun partyAddPlayer(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        if (_partyPlayers.value.any { it.name.equals(trimmed, ignoreCase = true) }) return
+        _partyPlayers.value = _partyPlayers.value +
+            PartyPlayer(id = java.util.UUID.randomUUID().toString(), name = trimmed)
+    }
+
+    fun partyRemovePlayer(id: String) {
+        _partyPlayers.value = _partyPlayers.value.filterNot { it.id == id }
+    }
+
+    fun partyResetAll() {
+        _partyPlayers.value = emptyList()
+    }
+
+    fun partyResetPlayerScores(id: String) {
+        _partyPlayers.value = _partyPlayers.value.map {
+            if (it.id == id) it.copy(leftKg = 0.0, rightKg = 0.0, bothKg = 0.0) else it
+        }
+    }
+
+    fun partyCapturePeak(playerId: String, hand: Hand) {
+        val peak = _peakKg.value
+        if (peak <= 0) return
+        _partyPlayers.value = _partyPlayers.value.map {
+            if (it.id == playerId) it.withCapture(hand, peak) else it
+        }
+    }
+
     val programs: List<Program> get() = ProgramLibrary.all + _presets.value.map { it.toProgram() }
 
     init {
@@ -333,5 +366,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         lastSampleTsMs = nowMs
 
         session?.reportSample(smooth)
+    }
+}
+
+data class PartyPlayer(
+    val id: String,
+    val name: String,
+    val leftKg: Double = 0.0,
+    val rightKg: Double = 0.0,
+    val bothKg: Double = 0.0
+) {
+    fun best(): Double = maxOf(leftKg, rightKg, bothKg)
+    fun forHand(h: Hand): Double = when (h) {
+        Hand.LEFT -> leftKg
+        Hand.RIGHT -> rightKg
+        Hand.BOTH -> bothKg
+    }
+    fun withCapture(h: Hand, kg: Double): PartyPlayer = when (h) {
+        Hand.LEFT -> copy(leftKg = maxOf(leftKg, kg))
+        Hand.RIGHT -> copy(rightKg = maxOf(rightKg, kg))
+        Hand.BOTH -> copy(bothKg = maxOf(bothKg, kg))
     }
 }

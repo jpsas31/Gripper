@@ -34,7 +34,7 @@ import com.whc06.trainer.training.Program
 import com.whc06.trainer.training.RepPreset
 
 enum class Tab(val label: String) {
-    LIVE("Live"), PROGRAMS("Programs"), PRESETS("Presets"), HISTORY("History"), SETTINGS("Settings")
+    LIVE("Live"), PROGRAMS("Programs"), PRESETS("Presets"), PARTY("Party"), HISTORY("History"), SETTINGS("Settings")
 }
 
 private val Category.icon
@@ -137,6 +137,7 @@ fun AppRoot(
                     vm.selectProgram(program)
                     runningProgram = program
                 }
+                Tab.PARTY -> PartyScreen(vm)
                 Tab.HISTORY -> HistoryScreen(vm) { s -> detailSession = s }
                 Tab.SETTINGS -> SettingsScreen(vm)
             }
