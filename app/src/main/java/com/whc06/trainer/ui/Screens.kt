@@ -276,6 +276,42 @@ private fun PermissionBanner(
 }
 
 @Composable
+private fun FirstRunCoachMark() {
+    val accent = MaterialTheme.colorScheme.primary
+    Surface(
+        color = accent.copy(alpha = 0.12f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.Bolt,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "First time? Set your MVC",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = accent
+                )
+                Text(
+                    "Pull as hard as you can for ~5s, then tap Save MVC below.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun LiveScreen(vm: MainViewModel) {
     val kg by vm.smoothedKg.collectAsState()
     val peak by vm.peakKg.collectAsState()
@@ -319,6 +355,10 @@ fun LiveScreen(vm: MainViewModel) {
             GripSelector(grip) { vm.selectGrip(it) }
             Spacer(Modifier.weight(1f))
             StableIndicator(stable, hz)
+        }
+
+        if (mvc <= 0) {
+            FirstRunCoachMark()
         }
 
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
@@ -750,6 +790,17 @@ private fun BuiltInProgramsList(vm: MainViewModel, onRun: (Program) -> Unit) {
     var filter by remember { mutableStateOf<Category?>(null) }
     val all = vm.programs
     val visible = filter?.let { f -> all.filter { it.category == f } } ?: all
+    val sessions by vm.recentSessions.collectAsState()
+
+    val quickStart = remember(all, sessions) {
+        val byId = all.associateBy { it.id }
+        val lastRun = sessions.firstOrNull()?.let { byId[it.programId] }
+        listOfNotNull(
+            byId["asmt_mvc"],
+            byId["prg_warmup"],
+            lastRun
+        ).distinctBy { it.id }
+    }
 
     val tabs = buildList {
         add(null)
@@ -758,6 +809,25 @@ private fun BuiltInProgramsList(vm: MainViewModel, onRun: (Program) -> Unit) {
     val selectedIndex = tabs.indexOf(filter).coerceAtLeast(0)
 
     Column(Modifier.fillMaxSize()) {
+        if (quickStart.isNotEmpty()) {
+            Text(
+                "QUICK START",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.outline,
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp)
+            )
+            androidx.compose.foundation.lazy.LazyRow(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+            ) {
+                items(quickStart, key = { "qs_${it.id}" }) { p ->
+                    QuickStartCard(p) { onRun(p) }
+                }
+            }
+        }
         ScrollableTabRow(
             selectedTabIndex = selectedIndex,
             edgePadding = 8.dp
@@ -792,6 +862,47 @@ private fun BuiltInProgramsList(vm: MainViewModel, onRun: (Program) -> Unit) {
             contentPadding = PaddingValues(top = 4.dp, bottom = 16.dp)
         ) {
             items(visible, key = { it.id }) { p -> ProgramCard(p) { onRun(p) } }
+        }
+    }
+}
+
+@Composable
+private fun QuickStartCard(p: Program, onStart: () -> Unit) {
+    val tagColor = Color(p.category.tagColor)
+    ElevatedCard(
+        onClick = onStart,
+        modifier = Modifier.width(180.dp)
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = p.category.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = tagColor
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    p.category.display.uppercase(),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tagColor,
+                    letterSpacing = 1.sp
+                )
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                p.name,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "~%dm".format(p.totalDurationMs / 60_000L),
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }
