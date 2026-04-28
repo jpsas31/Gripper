@@ -24,6 +24,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.whc06.trainer.training.Hand
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,6 +38,8 @@ fun PartyScreen(vm: MainViewModel) {
     var pendingPlayerName by remember { mutableStateOf("") }
     var captureMenuFor by remember { mutableStateOf<String?>(null) }
     var confirmReset by remember { mutableStateOf(false) }
+    val snackbarHost = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     val ranked = remember(players) {
         players.sortedByDescending { it.best() }
@@ -87,6 +90,7 @@ fun PartyScreen(vm: MainViewModel) {
         )
     }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Party Mode", fontWeight = FontWeight.Bold, fontSize = 20.sp,
@@ -188,8 +192,21 @@ fun PartyScreen(vm: MainViewModel) {
                         )
                         TextButton(
                             onClick = {
-                                vm.partyCapturePeak(p.id)
+                                val saved = vm.partyCapturePeak(p.id)
                                 captureMenuFor = null
+                                if (saved != null) {
+                                    val (h, kgVal) = saved
+                                    vm.resetPeak()
+                                    scope.launch {
+                                        snackbarHost.showSnackbar(
+                                            "Saved %.1f kg to %s (%s). Pull next.".format(
+                                                kgVal,
+                                                p.name,
+                                                h.name.lowercase()
+                                            )
+                                        )
+                                    }
+                                }
                             },
                             modifier = Modifier.align(Alignment.End)
                         ) { Text("Save to ${p.name}") }
@@ -234,6 +251,11 @@ fun PartyScreen(vm: MainViewModel) {
                 }
             }
         }
+    }
+        SnackbarHost(
+            hostState = snackbarHost,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+        )
     }
 }
 

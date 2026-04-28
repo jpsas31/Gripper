@@ -45,3 +45,20 @@ fun WhC06TrainerTheme(
         content = content
     )
 }
+
+@Composable
+fun GripperTheme(
+    mode: com.whc06.trainer.data.ThemeMode,
+    content: @Composable () -> Unit
+) {
+    val systemDark = isSystemInDarkTheme()
+    val dark = when (mode) {
+        com.whc06.trainer.data.ThemeMode.SYSTEM -> systemDark
+        com.whc06.trainer.data.ThemeMode.DARK -> true
+        com.whc06.trainer.data.ThemeMode.LIGHT -> false
+    }
+    MaterialTheme(
+        colorScheme = if (dark) DarkColors else LightColors,
+        content = content
+    )
+}

@@ -27,8 +27,8 @@ import com.whc06.trainer.training.Program
 import com.whc06.trainer.training.RepRecord
 import com.whc06.trainer.training.SessionLog
 
-private val PhaseWork = Color(0xFF34C759)
-private val PhaseRest = Color(0xFFFFB627)
+private val PhaseWork = Color(0xFFFF6B35)
+private val PhaseRest = Color(0xFF34C759)
 private val PhasePreRoll = Color(0xFF5BC0EB)
 
 @Composable
@@ -224,35 +224,52 @@ private fun ActiveLayer(
         )
 
         // Action bar — sticky bottom
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            if (!st.running) {
+        if (!st.running) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Button(onClick = { vm.startSession() }, modifier = Modifier.weight(1f)) {
                     Text("Start")
                 }
                 OutlinedButton(onClick = onClose, modifier = Modifier.weight(1f)) {
                     Text("Close")
                 }
-            } else {
-                if (st.paused) {
-                    Button(onClick = { vm.resumeSession() }, modifier = Modifier.weight(1f)) {
-                        Text("Resume")
-                    }
-                } else {
-                    OutlinedButton(onClick = { vm.pauseSession() }, modifier = Modifier.weight(1f)) {
-                        Text("Pause")
-                    }
-                }
-                OutlinedButton(onClick = { vm.skipPhase() }, modifier = Modifier.weight(1f)) {
-                    Text("Skip")
-                }
+            }
+        } else {
+            if (st.paused) {
                 Button(
+                    onClick = { vm.resumeSession() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Resume", fontWeight = FontWeight.SemiBold) }
+            } else {
+                OutlinedButton(
+                    onClick = { vm.pauseSession() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Pause", fontWeight = FontWeight.SemiBold) }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { vm.skipPhase() },
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
+                    Text("Skip phase", fontSize = 12.sp)
+                }
+                OutlinedButton(
                     onClick = { vm.stopSession() },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                ) { Text("Stop") }
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Stop", fontSize = 12.sp)
+                }
             }
         }
     }

@@ -91,6 +91,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _cfTutorialSeen = MutableStateFlow(false)
     val cfTutorialSeen: StateFlow<Boolean> = _cfTutorialSeen.asStateFlow()
 
+    private val _unitsKg = MutableStateFlow(true)
+    val unitsKg: StateFlow<Boolean> = _unitsKg.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(com.whc06.trainer.data.ThemeMode.SYSTEM)
+    val themeMode: StateFlow<com.whc06.trainer.data.ThemeMode> = _themeMode.asStateFlow()
+
+    private val _onboarded = MutableStateFlow(false)
+    val onboarded: StateFlow<Boolean> = _onboarded.asStateFlow()
+
+    private val _permsDenied = MutableStateFlow<Set<String>>(emptySet())
+    val permsDenied: StateFlow<Set<String>> = _permsDenied.asStateFlow()
+
+    fun setPermsDenied(denied: Set<String>) { _permsDenied.value = denied }
+
     val targetKg: StateFlow<Double> =
         combine(effectiveMvcKg, _targetPct) { mvc, pct -> if (mvc > 0) mvc * pct / 100.0 else 0.0 }
             .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
@@ -186,11 +200,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _hapticEnabled.value = st.hapticEnabled
                 _gripType.value = st.gripType
                 _cfTutorialSeen.value = st.cfTutorialSeen
+                _unitsKg.value = st.unitsKg
+                _themeMode.value = st.themeMode
+                _onboarded.value = st.onboarded
                 coach.enabled = st.ttsEnabled
                 coach.hapticEnabled = st.hapticEnabled
             }
         }
     }
+
+    fun setUnitsKg(kg: Boolean) =
+        viewModelScope.launch { Prefs.setUnitsKg(getApplication(), kg) }
+
+    fun setThemeMode(mode: com.whc06.trainer.data.ThemeMode) =
+        viewModelScope.launch { Prefs.setThemeMode(getApplication(), mode) }
+
+    fun markOnboarded() =
+        viewModelScope.launch { Prefs.setOnboarded(getApplication(), true) }
 
     override fun onCleared() {
         coach.shutdown()
@@ -336,6 +362,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             repo.deleteAllSessions()
             repo.deleteAllMvcRecords()
         }
+    }
+
+    fun clearSessionsOnly() {
+        viewModelScope.launch { repo.deleteAllSessions() }
+    }
+
+    fun clearMvcRecordsOnly() {
+        viewModelScope.launch { repo.deleteAllMvcRecords() }
     }
 
     fun clearChartHistory() {

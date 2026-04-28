@@ -8,6 +8,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -16,10 +18,12 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.whc06.trainer.ui.AppRoot
 import com.whc06.trainer.ui.MainViewModel
-import com.whc06.trainer.ui.theme.WhC06TrainerTheme
+import com.whc06.trainer.ui.theme.GripperTheme
 
 class MainActivity : ComponentActivity() {
 
@@ -29,14 +33,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         val denied = result.filter { !it.value }.keys
-        if (denied.isNotEmpty()) {
-            val sb = denied.joinToString(", ") { it.substringAfterLast('.') }
-            android.widget.Toast.makeText(
-                this,
-                "Permissions denied: $sb. Open Settings → Apps → Gripper → Permissions.",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-        }
+        vm.setPermsDenied(denied)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,16 +41,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         setContent {
-            WhC06TrainerTheme {
+            val mode by vm.themeMode.collectAsState()
+            GripperTheme(mode = mode) {
                 Surface(Modifier.fillMaxSize().statusBarsPadding()) {
                     AppRoot(
                         vm = vm,
                         onPermissionsNeeded = ::requestBlePermissions,
-                        onRequestBluetoothEnable = ::requestBluetoothEnable
+                        onRequestBluetoothEnable = ::requestBluetoothEnable,
+                        onOpenAppSettings = ::openAppSettings
                     )
                 }
             }
         }
+    }
+
+    private fun openAppSettings() {
+        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            .setData(Uri.fromParts("package", packageName, null))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        startActivity(intent)
     }
 
     private fun requestBluetoothEnable() {

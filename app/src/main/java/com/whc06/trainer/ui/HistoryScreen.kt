@@ -8,6 +8,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.DeleteSweep
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -15,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,20 +40,40 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
     val prs = remember(sessions) { computePRs(sessions) }
     val byProgram = remember(sessions) { sessions.groupBy { it.programName } }
 
-    var confirmClear by remember { mutableStateOf(false) }
-    if (confirmClear) {
+    var clearTarget by remember { mutableStateOf<ClearTarget?>(null) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var filter by remember { mutableStateOf(HistoryFilter.ALL) }
+    val context = LocalContext.current
+
+    clearTarget?.let { target ->
         AlertDialog(
-            onDismissRequest = { confirmClear = false },
-            title = { Text("Clear all history?") },
-            text = { Text("Deletes all ${sessions.size} saved session(s). Cannot be undone.") },
+            onDismissRequest = { clearTarget = null },
+            title = {
+                Text(when (target) {
+                    ClearTarget.SESSIONS -> "Clear sessions?"
+                    ClearTarget.MVC -> "Clear MVC records?"
+                    ClearTarget.BOTH -> "Clear everything?"
+                })
+            },
+            text = {
+                Text(when (target) {
+                    ClearTarget.SESSIONS -> "Deletes all ${sessions.size} session(s). MVC records kept."
+                    ClearTarget.MVC -> "Deletes all ${mvcRecords.size} MVC record(s). Sessions kept."
+                    ClearTarget.BOTH -> "Deletes ${sessions.size} session(s) + ${mvcRecords.size} MVC record(s). Cannot be undone."
+                })
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    vm.clearHistory()
-                    confirmClear = false
+                    when (target) {
+                        ClearTarget.SESSIONS -> vm.clearSessionsOnly()
+                        ClearTarget.MVC -> vm.clearMvcRecordsOnly()
+                        ClearTarget.BOTH -> vm.clearHistory()
+                    }
+                    clearTarget = null
                 }) { Text("Clear", color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+                TextButton(onClick = { clearTarget = null }) { Text("Cancel") }
             }
         )
     }
@@ -64,37 +87,123 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
                 modifier = Modifier.weight(1f)
             )
             if (sessions.isNotEmpty()) {
-                TextButton(onClick = { confirmClear = true }) {
+                TextButton(onClick = { exportSessionsCsv(context, sessions) }) {
                     Icon(
-                        Icons.Outlined.DeleteSweep,
+                        Icons.Outlined.IosShare,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Clear", fontSize = 13.sp)
+                    Text("Export", fontSize = 12.sp)
+                }
+            }
+            Box {
+                IconButton(onClick = { menuOpen = true }) {
+                    Icon(Icons.Outlined.MoreVert, contentDescription = "More")
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Clear sessions") },
+                        leadingIcon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null) },
+                        enabled = sessions.isNotEmpty(),
+                        onClick = { menuOpen = false; clearTarget = ClearTarget.SESSIONS }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Clear MVC records") },
+                        leadingIcon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null) },
+                        enabled = mvcRecords.isNotEmpty(),
+                        onClick = { menuOpen = false; clearTarget = ClearTarget.MVC }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Clear everything") },
+                        leadingIcon = { Icon(Icons.Outlined.DeleteSweep, contentDescription = null) },
+                        enabled = sessions.isNotEmpty() || mvcRecords.isNotEmpty(),
+                        onClick = { menuOpen = false; clearTarget = ClearTarget.BOTH }
+                    )
                 }
             }
         }
-        Spacer(Modifier.height(12.dp))
-        if (sessions.isEmpty()) {
+        Spacer(Modifier.height(8.dp))
+        if (sessions.isEmpty() && mvcRecords.isEmpty()) {
             EmptyHistoryCard()
             return@Column
         }
+
+        ScrollableTabRow(
+            selectedTabIndex = filter.ordinal,
+            edgePadding = 0.dp
+        ) {
+            HistoryFilter.entries.forEach { f ->
+                Tab(
+                    selected = filter == f,
+                    onClick = { filter = f },
+                    text = {
+                        Text(
+                            f.label,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item(key = "hand_compare") { HandComparisonCard(sessions) }
-            if (mvcRecords.isNotEmpty()) {
+            if (filter == HistoryFilter.ALL || filter == HistoryFilter.PER_HAND) {
+                item(key = "hand_compare") { HandComparisonCard(sessions) }
+            }
+            if (mvcRecords.isNotEmpty() && (filter == HistoryFilter.ALL || filter == HistoryFilter.MVC)) {
                 item(key = "mvc_history") { MvcHistoryCard(mvcRecords) }
             }
-            byProgram.forEach { (programName, sList) ->
-                item(key = "trend_$programName") {
-                    TrendCard(programName, sList)
-                }
-                items(sList, key = { "session_${it.id}" }) { s ->
-                    SessionCard(s, isPr = s.id in prs) { onSessionClick(s) }
+            if (filter == HistoryFilter.ALL || filter == HistoryFilter.PROGRAMS) {
+                byProgram.forEach { (programName, sList) ->
+                    item(key = "trend_$programName") {
+                        TrendCard(programName, sList)
+                    }
+                    items(sList, key = { "session_${it.id}" }) { s ->
+                        SessionCard(s, isPr = s.id in prs) { onSessionClick(s) }
+                    }
                 }
             }
         }
     }
+}
+
+private enum class ClearTarget { SESSIONS, MVC, BOTH }
+private enum class HistoryFilter(val label: String) {
+    ALL("All"), PROGRAMS("Programs"), PER_HAND("Per-hand"), MVC("MVC")
+}
+
+private fun exportSessionsCsv(context: android.content.Context, sessions: List<SessionEntity>) {
+    val csv = buildString {
+        append("startedAtMs,endedAtMs,programId,programName,hand,gripType,mvcAtStart,peakKgOverall,criticalForceKg,wPrimeKgSec\n")
+        sessions.forEach { s ->
+            append(s.startedAtMs).append(',')
+            append(s.endedAtMs).append(',')
+            append(s.programId).append(',')
+            append("\"${s.programName.replace("\"", "\"\"")}\"").append(',')
+            append(s.hand).append(',')
+            append(s.gripType).append(',')
+            append(s.mvcAtStart).append(',')
+            append(s.peakKgOverall).append(',')
+            append(s.criticalForceKg ?: "").append(',')
+            append(s.wPrimeKgSec ?: "").append('\n')
+        }
+    }
+    val cacheFile = java.io.File(context.cacheDir, "gripper-sessions-${System.currentTimeMillis()}.csv")
+    cacheFile.writeText(csv)
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context, "${context.packageName}.fileprovider", cacheFile
+    )
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "text/csv"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Export sessions").apply {
+        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    })
 }
 
 @Composable
@@ -375,7 +484,7 @@ private fun EmptyHistoryCard() {
         Column(Modifier.padding(16.dp)) {
             Text("No sessions yet", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
-            Text("Run any program from the Programs tab to record your first session.",
+            Text("Run any program from the Train tab to record your first session.",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

@@ -10,18 +10,26 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.FitnessCenter
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.LocalFireDepartment
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Spa
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,8 +41,12 @@ import com.whc06.trainer.training.Hand
 import com.whc06.trainer.training.Program
 import com.whc06.trainer.training.RepPreset
 
-enum class Tab(val label: String) {
-    LIVE("Live"), PROGRAMS("Train"), PRESETS("Presets"), PARTY("Party"), HISTORY("History"), SETTINGS("Settings")
+enum class Tab(val label: String, val icon: ImageVector) {
+    LIVE("Live", Icons.Outlined.Bolt),
+    PROGRAMS("Train", Icons.Outlined.FitnessCenter),
+    PARTY("Party", Icons.Outlined.Groups),
+    HISTORY("History", Icons.Outlined.History),
+    SETTINGS("Settings", Icons.Outlined.Settings)
 }
 
 private val Category.icon
@@ -49,7 +61,8 @@ private val Category.icon
 fun AppRoot(
     vm: MainViewModel,
     onPermissionsNeeded: () -> Unit,
-    onRequestBluetoothEnable: () -> Unit = {}
+    onRequestBluetoothEnable: () -> Unit = {},
+    onOpenAppSettings: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(Tab.LIVE) }
     var runningProgram by remember { mutableStateOf<Program?>(null) }
@@ -59,6 +72,7 @@ fun AppRoot(
     val sessionState by vm.sessionState.collectAsState()
     val lastLog by vm.lastLog.collectAsState()
     val cfTutorialSeen by vm.cfTutorialSeen.collectAsState()
+    val permsDenied by vm.permsDenied.collectAsState()
     var showCfResult by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { onPermissionsNeeded() }
@@ -106,7 +120,13 @@ fun AppRoot(
                     NavigationBarItem(
                         selected = tab == t,
                         onClick = { tab = t },
-                        icon = {},
+                        icon = {
+                            Icon(
+                                t.icon,
+                                contentDescription = t.label,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        },
                         label = {
                             Text(
                                 t.label,
@@ -121,6 +141,13 @@ fun AppRoot(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            if (permsDenied.isNotEmpty()) {
+                PermissionBanner(
+                    denied = permsDenied,
+                    onOpenSettings = onOpenAppSettings,
+                    onRetry = onPermissionsNeeded
+                )
+            }
             ConnectionStrip(scanState, vm.packetsPerSec.collectAsState().value) {
                 when (scanState) {
                     BleScanner.State.SCANNING -> vm.stopScan()
@@ -130,20 +157,23 @@ fun AppRoot(
             }
             when (tab) {
                 Tab.LIVE -> LiveScreen(vm)
-                Tab.PROGRAMS -> ProgramsScreen(vm) { p ->
-                    val isCf = p.id.contains("cf", ignoreCase = true)
-                    if (isCf && !cfTutorialSeen) {
-                        pendingCfProgram = p
-                    } else {
-                        vm.selectProgram(p)
-                        runningProgram = p
+                Tab.PROGRAMS -> ProgramsScreen(
+                    vm = vm,
+                    onRun = { p ->
+                        val isCf = p.id.contains("cf", ignoreCase = true)
+                        if (isCf && !cfTutorialSeen) {
+                            pendingCfProgram = p
+                        } else {
+                            vm.selectProgram(p)
+                            runningProgram = p
+                        }
+                    },
+                    onRunPreset = { preset ->
+                        val program = preset.toProgram()
+                        vm.selectProgram(program)
+                        runningProgram = program
                     }
-                }
-                Tab.PRESETS -> PresetsScreen(vm) { preset ->
-                    val program = preset.toProgram()
-                    vm.selectProgram(program)
-                    runningProgram = program
-                }
+                )
                 Tab.PARTY -> PartyScreen(vm)
                 Tab.HISTORY -> HistoryScreen(vm) { s -> detailSession = s }
                 Tab.SETTINGS -> SettingsScreen(vm)
@@ -160,20 +190,87 @@ private fun ConnectionStrip(state: BleScanner.State, hz: Double, onToggle: () ->
         BleScanner.State.NO_BLUETOOTH -> "No BLE" to MaterialTheme.colorScheme.error
         BleScanner.State.BLUETOOTH_OFF -> "Tap to enable Bluetooth" to MaterialTheme.colorScheme.error
     }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    val collapsed = state == BleScanner.State.SCANNING && hz > 1.0
+    if (collapsed) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(8.dp).background(color, RoundedCornerShape(50)))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "%.1f Hz".format(hz),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onToggle, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
+                Text("Stop", fontSize = 11.sp)
+            }
+        }
+    } else {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(10.dp).background(color, RoundedCornerShape(50)))
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.weight(1f))
+            FilledTonalButton(onClick = onToggle) {
+                Text(when (state) {
+                    BleScanner.State.SCANNING -> "Stop"
+                    BleScanner.State.BLUETOOTH_OFF -> "Enable"
+                    else -> "Scan"
+                })
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionBanner(
+    denied: Set<String>,
+    onOpenSettings: () -> Unit,
+    onRetry: () -> Unit
+) {
+    val labels = denied.joinToString(", ") { it.substringAfterLast('.') }
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer,
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Box(Modifier.size(10.dp).background(color, RoundedCornerShape(50)))
-        Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium)
-        Spacer(Modifier.weight(1f))
-        FilledTonalButton(onClick = onToggle) {
-            Text(when (state) {
-                BleScanner.State.SCANNING -> "Stop"
-                BleScanner.State.BLUETOOTH_OFF -> "Enable"
-                else -> "Scan"
-            })
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.WarningAmber,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Permissions denied",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+                Text(
+                    labels,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+            TextButton(onClick = onRetry) {
+                Text("Retry", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer)
+            }
+            TextButton(onClick = onOpenSettings) {
+                Text("Settings", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer)
+            }
         }
     }
 }
@@ -204,8 +301,13 @@ fun LiveScreen(vm: MainViewModel) {
         if (mvc > 0 && targetKg > 0) ((targetKg / mvc) * 100).toInt() else null
     }
 
+    val units by vm.unitsKg.collectAsState()
+    val unitLabel = if (units) "kg" else "lb"
+    fun fmt(v: Double): String = "%.1f".format(if (units) v else v * 2.20462)
+    val targetActive = targetKg > 0
+
     Column(
-        Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
@@ -226,14 +328,17 @@ fun LiveScreen(vm: MainViewModel) {
             ) {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        "%.1f".format(kg),
+                        fmt(kg),
                         fontSize = 64.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Current force, ${"%.1f".format(kg)} kilograms"
+                        }
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "kg",
+                        unitLabel,
                         fontSize = 18.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 12.dp)
@@ -242,7 +347,7 @@ fun LiveScreen(vm: MainViewModel) {
                 Spacer(Modifier.height(4.dp))
                 ForceChart(
                     samples = samples,
-                    targetKg = if (targetKg > 0) targetKg else null,
+                    targetKg = if (targetActive) targetKg else null,
                     targetPctMvc = targetPctMvc,
                     zoneTolerancePct = zoneTol,
                     windowMs = 30_000L,
@@ -252,20 +357,30 @@ fun LiveScreen(vm: MainViewModel) {
             }
         }
 
-        StatsGrid(peak = peak, avg = avgKg10s, tizSec = tiz / 1000.0)
+        StatsGrid(
+            peak = peak,
+            avg = avgKg10s,
+            tizSec = tiz / 1000.0,
+            showZone = targetActive,
+            unitLabel = unitLabel,
+            convert = { v -> if (units) v else v * 2.20462 }
+        )
 
         val cmvc by vm.commonMvc.collectAsState()
         MvcComparisonCard(
             mvc = cmvc,
             selectedHand = hand,
             currentPeak = peak,
-            targetKg = if (targetKg > 0) targetKg else null,
+            targetKg = if (targetActive) targetKg else null,
+            grip = grip,
+            unitLabel = unitLabel,
+            convert = { v -> if (units) v else v * 2.20462 },
             onSelectHand = { vm.selectHand(it) },
             onSavePeak = { vm.saveCurrentPeakAsMvc() }
         )
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { vm.tare() }, modifier = Modifier.weight(1f)) {
+            Button(onClick = { vm.tare() }, modifier = Modifier.weight(1f)) {
                 Icon(
                     Icons.Outlined.RestartAlt,
                     contentDescription = null,
@@ -274,14 +389,15 @@ fun LiveScreen(vm: MainViewModel) {
                 Spacer(Modifier.width(6.dp))
                 Text("Tare")
             }
-            OutlinedButton(onClick = { vm.resetPeak() }, modifier = Modifier.weight(1f)) {
+            OutlinedIconButton(
+                onClick = { vm.resetPeak() },
+                modifier = Modifier.size(48.dp)
+            ) {
                 Icon(
                     Icons.Outlined.Refresh,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
+                    contentDescription = "Reset peak",
+                    modifier = Modifier.size(20.dp)
                 )
-                Spacer(Modifier.width(6.dp))
-                Text("Reset Peak")
             }
         }
     }
@@ -290,40 +406,40 @@ fun LiveScreen(vm: MainViewModel) {
 @Composable
 private fun StableIndicator(stable: Boolean, hz: Double) {
     val color = if (stable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+    val label = when {
+        hz <= 0.0 -> if (stable) "stable" else "settling"
+        else -> "%.1f Hz · ".format(hz) + if (stable) "stable" else "noisy"
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).background(color, RoundedCornerShape(50)))
+        Spacer(Modifier.width(6.dp))
         Text(
-            if (stable) "●" else "○",
+            label,
             color = color,
-            fontSize = 14.sp
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Medium
         )
-        Spacer(Modifier.width(4.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                if (stable) "Stable" else "Settling",
-                color = color,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium
-            )
-            if (hz > 0) {
-                Text(
-                    "%.1f Hz".format(hz),
-                    color = MaterialTheme.colorScheme.outline,
-                    fontSize = 9.sp
-                )
-            }
-        }
     }
 }
 
 @Composable
-private fun StatsGrid(peak: Double, avg: Double, tizSec: Double) {
+private fun StatsGrid(
+    peak: Double,
+    avg: Double,
+    tizSec: Double,
+    showZone: Boolean = true,
+    unitLabel: String = "kg",
+    convert: (Double) -> Double = { it }
+) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatCell("PEAK", "%.1f".format(peak), "kg", Modifier.weight(1f))
-        StatCell("AVG (10s)", "%.1f".format(avg), "kg", Modifier.weight(1f))
-        StatCell("IN ZONE", "%.1f".format(tizSec), "s", Modifier.weight(1f))
+        StatCell("PEAK", "%.1f".format(convert(peak)), unitLabel, Modifier.weight(1f))
+        StatCell("AVG (10s)", "%.1f".format(convert(avg)), unitLabel, Modifier.weight(1f))
+        if (showZone) {
+            StatCell("IN ZONE", "%.1f".format(tizSec), "s", Modifier.weight(1f))
+        }
     }
 }
 
@@ -373,6 +489,9 @@ private fun MvcComparisonCard(
     selectedHand: Hand,
     currentPeak: Double,
     targetKg: Double?,
+    grip: GripType,
+    unitLabel: String = "kg",
+    convert: (Double) -> Double = { it },
     onSelectHand: (Hand) -> Unit,
     onSavePeak: () -> Unit
 ) {
@@ -389,22 +508,35 @@ private fun MvcComparisonCard(
         else -> null
     }
     val anyMvc = (left > 0) || (right > 0) || (both > 0)
+    val asymIcon = asymPct?.let { p ->
+        when {
+            p >= 10.0 -> "⚠⚠"
+            p >= 5.0 -> "⚠"
+            else -> "✓"
+        }
+    }
 
     ElevatedCard(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "MVC PER HAND",
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.outline,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.weight(1f)
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        "MVC PER HAND",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.outline,
+                        letterSpacing = 1.sp
+                    )
+                    Text(
+                        "grip: ${grip.display}",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 asymPct?.let { p ->
                     val tag = stronger?.let { "${it.name.lowercase().replaceFirstChar { c -> c.uppercase() }} +%.0f%%".format(p) } ?: "%.0f%%".format(p)
                     Text(
-                        "Asym $tag",
+                        "$asymIcon Asym $tag",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (p >= 10.0) Color(0xFFFF3B30)
@@ -415,24 +547,25 @@ private fun MvcComparisonCard(
             }
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                MvcCell("LEFT", left, Hand.LEFT, selectedHand, onSelectHand, Modifier.weight(1f))
-                MvcCell("BOTH", both, Hand.BOTH, selectedHand, onSelectHand, Modifier.weight(1f))
-                MvcCell("RIGHT", right, Hand.RIGHT, selectedHand, onSelectHand, Modifier.weight(1f))
+                MvcCell("LEFT", left, Hand.LEFT, selectedHand, onSelectHand, unitLabel, convert, Modifier.weight(1f))
+                MvcCell("BOTH", both, Hand.BOTH, selectedHand, onSelectHand, unitLabel, convert, Modifier.weight(1f))
+                MvcCell("RIGHT", right, Hand.RIGHT, selectedHand, onSelectHand, unitLabel, convert, Modifier.weight(1f))
             }
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     if (targetKg != null) {
                         Text(
-                            "Target %.1f kg".format(targetKg),
+                            "Target %.1f $unitLabel".format(convert(targetKg)),
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.outline
                         )
                     } else if (!anyMvc) {
                         Text(
-                            "Pull max effort to set MVC",
+                            "Pull max effort to set MVC ↓",
                             fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.outline
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -457,12 +590,14 @@ private fun MvcCell(
     hand: Hand,
     selectedHand: Hand,
     onSelect: (Hand) -> Unit,
+    unitLabel: String = "kg",
+    convert: (Double) -> Double = { it },
     modifier: Modifier = Modifier
 ) {
     val tint = handTraceColor(hand)
     val isSelected = hand == selectedHand
     Surface(
-        modifier = modifier,
+        modifier = modifier.heightIn(min = 48.dp),
         onClick = { onSelect(hand) },
         color = if (isSelected) tint.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
         shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
@@ -482,13 +617,13 @@ private fun MvcCell(
             Spacer(Modifier.height(2.dp))
             if (value > 0) {
                 Text(
-                    "%.1f".format(value),
+                    "%.1f".format(convert(value)),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    "kg",
+                    unitLabel,
                     fontSize = 9.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -570,8 +705,48 @@ private fun GripSelector(selected: GripType, onSelect: (GripType) -> Unit) {
     }
 }
 
+private enum class TrainSource { BUILT_IN, CUSTOM }
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProgramsScreen(vm: MainViewModel, onRun: (Program) -> Unit) {
+fun ProgramsScreen(
+    vm: MainViewModel,
+    onRun: (Program) -> Unit,
+    onRunPreset: (RepPreset) -> Unit
+) {
+    var source by remember { mutableStateOf(TrainSource.BUILT_IN) }
+
+    Column(Modifier.fillMaxSize()) {
+        SingleChoiceSegmentedButtonRow(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            SegmentedButton(
+                selected = source == TrainSource.BUILT_IN,
+                onClick = { source = TrainSource.BUILT_IN },
+                shape = SegmentedButtonDefaults.itemShape(0, 2),
+                label = { Text("Built-in", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            )
+            SegmentedButton(
+                selected = source == TrainSource.CUSTOM,
+                onClick = { source = TrainSource.CUSTOM },
+                shape = SegmentedButtonDefaults.itemShape(1, 2),
+                label = { Text("Custom", fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+            )
+        }
+        when (source) {
+            TrainSource.BUILT_IN -> BuiltInProgramsList(vm, onRun)
+            TrainSource.CUSTOM -> CustomPresetsList(vm, onRunPreset)
+        }
+    }
+}
+
+@Composable
+private fun CustomPresetsList(vm: MainViewModel, onRunPreset: (RepPreset) -> Unit) {
+    PresetsScreen(vm = vm, onRunPreset = onRunPreset)
+}
+
+@Composable
+private fun BuiltInProgramsList(vm: MainViewModel, onRun: (Program) -> Unit) {
     var filter by remember { mutableStateOf<Category?>(null) }
     val all = vm.programs
     val visible = filter?.let { f -> all.filter { it.category == f } } ?: all
@@ -665,6 +840,7 @@ private fun ProgramCard(p: Program, onStart: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(vm: MainViewModel) {
     val mvc by vm.commonMvc.collectAsState()
@@ -673,11 +849,46 @@ fun SettingsScreen(vm: MainViewModel) {
     val haptic by vm.hapticEnabled.collectAsState()
     val zoneTol by vm.zoneTolerancePct.collectAsState()
     val targetPct by vm.targetPct.collectAsState()
+    val unitsKg by vm.unitsKg.collectAsState()
+    val themeMode by vm.themeMode.collectAsState()
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        SettingsCard("Display") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Units", modifier = Modifier.weight(1f), fontSize = 14.sp)
+                SingleChoiceSegmentedButtonRow {
+                    SegmentedButton(
+                        selected = unitsKg,
+                        onClick = { vm.setUnitsKg(true) },
+                        shape = SegmentedButtonDefaults.itemShape(0, 2),
+                        label = { Text("kg", fontSize = 12.sp) }
+                    )
+                    SegmentedButton(
+                        selected = !unitsKg,
+                        onClick = { vm.setUnitsKg(false) },
+                        shape = SegmentedButtonDefaults.itemShape(1, 2),
+                        label = { Text("lb", fontSize = 12.sp) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("Theme", fontSize = 14.sp)
+            Spacer(Modifier.height(4.dp))
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                com.whc06.trainer.data.ThemeMode.entries.forEachIndexed { i, m ->
+                    SegmentedButton(
+                        selected = themeMode == m,
+                        onClick = { vm.setThemeMode(m) },
+                        shape = SegmentedButtonDefaults.itemShape(i, com.whc06.trainer.data.ThemeMode.entries.size),
+                        label = { Text(m.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp) }
+                    )
+                }
+            }
+        }
+
         SettingsCard("MVC Reference") {
             ManualMvcRow("Bilateral", mvc.bilateralKg) { vm.setManualMvc(Hand.BOTH, it) }
             ManualMvcRow("Left", mvc.leftKg) { vm.setManualMvc(Hand.LEFT, it) }
@@ -696,14 +907,16 @@ fun SettingsScreen(vm: MainViewModel) {
             Slider(
                 value = targetPct.toFloat(),
                 onValueChange = { vm.setTargetPct(it.toInt()) },
-                valueRange = 10f..120f
+                valueRange = 10f..120f,
+                steps = 21
             )
             Spacer(Modifier.height(4.dp))
             Text("Zone tolerance: ±$zoneTol%", fontSize = 13.sp)
             Slider(
                 value = zoneTol.toFloat(),
                 onValueChange = { vm.setZoneTolerance(it.toInt()) },
-                valueRange = 1f..20f
+                valueRange = 1f..20f,
+                steps = 18
             )
         }
 

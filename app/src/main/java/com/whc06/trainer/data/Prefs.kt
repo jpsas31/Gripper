@@ -31,6 +31,9 @@ object Prefs {
     private val HAPTIC_ENABLED = booleanPreferencesKey("haptic_enabled")
     private val GRIP_TYPE = stringPreferencesKey("grip_type")
     private val CF_TUTORIAL_SEEN = booleanPreferencesKey("cf_tutorial_seen")
+    private val UNITS_KG = booleanPreferencesKey("units_kg")
+    private val THEME_MODE = stringPreferencesKey("theme_mode")
+    private val ONBOARDED = booleanPreferencesKey("onboarded")
 
     fun observe(ctx: Context): Flow<PrefsState> =
         ctx.dataStore.data.map { it.toState() }
@@ -81,6 +84,18 @@ object Prefs {
         ctx.dataStore.edit { it[CF_TUTORIAL_SEEN] = seen }
     }
 
+    suspend fun setUnitsKg(ctx: Context, kg: Boolean) {
+        ctx.dataStore.edit { it[UNITS_KG] = kg }
+    }
+
+    suspend fun setThemeMode(ctx: Context, mode: ThemeMode) {
+        ctx.dataStore.edit { it[THEME_MODE] = mode.name }
+    }
+
+    suspend fun setOnboarded(ctx: Context, seen: Boolean) {
+        ctx.dataStore.edit { it[ONBOARDED] = seen }
+    }
+
     private fun Preferences.toState(): PrefsState = PrefsState(
         mvc = CommonMvc(
             bilateralKg = this[MVC_BILATERAL] ?: 0.0,
@@ -101,9 +116,15 @@ object Prefs {
         gripType = runCatching {
             com.whc06.trainer.training.GripType.valueOf(this[GRIP_TYPE] ?: "HALF_CRIMP")
         }.getOrElse { com.whc06.trainer.training.GripType.HALF_CRIMP },
-        cfTutorialSeen = this[CF_TUTORIAL_SEEN] ?: false
+        cfTutorialSeen = this[CF_TUTORIAL_SEEN] ?: false,
+        unitsKg = this[UNITS_KG] ?: true,
+        themeMode = runCatching { ThemeMode.valueOf(this[THEME_MODE] ?: "SYSTEM") }
+            .getOrElse { ThemeMode.SYSTEM },
+        onboarded = this[ONBOARDED] ?: false
     )
 }
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 data class PrefsState(
     val mvc: CommonMvc,
@@ -115,5 +136,8 @@ data class PrefsState(
     val ttsEnabled: Boolean,
     val hapticEnabled: Boolean,
     val gripType: com.whc06.trainer.training.GripType,
-    val cfTutorialSeen: Boolean
+    val cfTutorialSeen: Boolean,
+    val unitsKg: Boolean = true,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val onboarded: Boolean = false
 )
