@@ -191,7 +191,7 @@ fun LiveScreen(vm: MainViewModel) {
     val tiz by vm.timeInZoneMs.collectAsState()
     val hz by vm.packetsPerSec.collectAsState()
 
-    val samples = vm.recentSamples.toList()
+    val samples by vm.recentSamples.collectAsState()
     val avgKg10s = remember(samples) {
         if (samples.isEmpty()) 0.0
         else {

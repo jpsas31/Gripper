@@ -117,21 +117,31 @@ fun ForceChart(
         }
         if (pts.isNotEmpty()) {
             val path = Path()
-            if (pts.size == 1) {
-                path.moveTo(pts[0].x, pts[0].y)
-                path.lineTo(pts[0].x, pts[0].y)
-            } else {
-                path.moveTo(pts[0].x, pts[0].y)
-                for (i in 1 until pts.size) {
-                    val prev = pts[i - 1]
-                    val curr = pts[i]
-                    val midX = (prev.x + curr.x) / 2f
-                    val midY = (prev.y + curr.y) / 2f
-                    path.quadraticBezierTo(prev.x, prev.y, midX, midY)
+            when {
+                pts.size == 1 -> {
+                    drawCircle(accent, radius = 4f, center = pts[0])
                 }
-                path.lineTo(pts.last().x, pts.last().y)
+                pts.size == 2 -> {
+                    path.moveTo(pts[0].x, pts[0].y)
+                    path.lineTo(pts[1].x, pts[1].y)
+                    drawPath(path, accent, style = Stroke(width = 4f))
+                }
+                else -> {
+                    path.moveTo(pts[0].x, pts[0].y)
+                    for (i in 0 until pts.size - 1) {
+                        val p0 = if (i == 0) pts[0] else pts[i - 1]
+                        val p1 = pts[i]
+                        val p2 = pts[i + 1]
+                        val p3 = if (i + 2 < pts.size) pts[i + 2] else pts[i + 1]
+                        val c1x = p1.x + (p2.x - p0.x) / 6f
+                        val c1y = p1.y + (p2.y - p0.y) / 6f
+                        val c2x = p2.x - (p3.x - p1.x) / 6f
+                        val c2y = p2.y - (p3.y - p1.y) / 6f
+                        path.cubicTo(c1x, c1y, c2x, c2y, p2.x, p2.y)
+                    }
+                    drawPath(path, accent, style = Stroke(width = 4f))
+                }
             }
-            drawPath(path, accent, style = Stroke(width = 4f))
         }
     }
 }

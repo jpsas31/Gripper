@@ -113,7 +113,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _repCompleteEvents = MutableSharedFlow<Pair<Int, Double>>(extraBufferCapacity = 8)
     val repCompleteEvents: SharedFlow<Pair<Int, Double>> = _repCompleteEvents.asSharedFlow()
 
-    val recentSamples = ArrayDeque<Pair<Long, Double>>()
+    private val samplesDeque = ArrayDeque<Pair<Long, Double>>()
+    private val _recentSamples = MutableStateFlow<List<Pair<Long, Double>>>(emptyList())
+    val recentSamples: StateFlow<List<Pair<Long, Double>>> = _recentSamples.asStateFlow()
     private val maxHistoryMs = 30_000L
 
     private val _presets = MutableStateFlow<List<RepPreset>>(emptyList())
@@ -150,12 +152,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun partyCapturePeak(playerId: String, hand: Hand) {
+    fun partyCapturePeak(playerId: String): Pair<Hand, Double>? {
         val peak = _peakKg.value
-        if (peak <= 0) return
+        val hand = _selectedHand.value
+        if (peak <= 0) return null
         _partyPlayers.value = _partyPlayers.value.map {
             if (it.id == playerId) it.withCapture(hand, peak) else it
         }
+        return hand to peak
     }
 
     val programs: List<Program> get() = ProgramLibrary.all + _presets.value.map { it.toProgram() }
@@ -210,8 +214,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun untare() = viewModelScope.launch { Prefs.setTare(getApplication(), 0.0) }
 
-    fun selectHand(h: Hand) =
-        viewModelScope.launch { Prefs.setHand(getApplication(), h) }
+    fun selectHand(h: Hand): Job? {
+        if (_sessionState.value.running) return null
+        return viewModelScope.launch { Prefs.setHand(getApplication(), h) }
+    }
 
     fun selectGrip(g: GripType) =
         viewModelScope.launch { Prefs.setGripType(getApplication(), g) }
@@ -333,7 +339,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearChartHistory() {
-        recentSamples.clear()
+        synchronized(samplesDeque) {
+            samplesDeque.clear()
+            _recentSamples.value = emptyList()
+        }
     }
 
     fun decodePeaks(json: String) = repo.decodePeaks(json)
@@ -350,10 +359,15 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (p > _peakKg.value) _peakKg.value = p
 
         val nowMs = s.timestampNanos / 1_000_000L
-        recentSamples.addLast(nowMs to smooth)
-        while (recentSamples.isNotEmpty() && nowMs - recentSamples.first().first > maxHistoryMs) {
-            recentSamples.removeFirst()
+        val snapshot: List<Pair<Long, Double>>
+        synchronized(samplesDeque) {
+            samplesDeque.addLast(nowMs to smooth)
+            while (samplesDeque.isNotEmpty() && nowMs - samplesDeque.first().first > maxHistoryMs) {
+                samplesDeque.removeFirst()
+            }
+            snapshot = samplesDeque.toList()
         }
+        _recentSamples.value = snapshot
 
         val tk = targetKg.value
         if (tk > 0) {

@@ -214,7 +214,7 @@ private fun ActiveLayer(
         }
 
         ForceChart(
-            samples = vm.recentSamples.toList(),
+            samples = vm.recentSamples.collectAsState().value,
             targetKg = targetKg,
             targetPctMvc = targetPctMvc,
             zoneTolerancePct = zoneTol,

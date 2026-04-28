@@ -188,7 +188,7 @@ fun PartyScreen(vm: MainViewModel) {
                         )
                         TextButton(
                             onClick = {
-                                vm.partyCapturePeak(p.id, hand)
+                                vm.partyCapturePeak(p.id)
                                 captureMenuFor = null
                             },
                             modifier = Modifier.align(Alignment.End)
