@@ -206,9 +206,8 @@ fun LiveScreen(vm: MainViewModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            HandSelector(hand) { vm.selectHand(it) }
+            HandSegmented(hand, Modifier.weight(1f)) { vm.selectHand(it) }
             GripSelector(grip) { vm.selectGrip(it) }
-            Spacer(Modifier.weight(1f))
             StableIndicator(stable, hz)
         }
 
@@ -247,42 +246,15 @@ fun LiveScreen(vm: MainViewModel) {
 
         StatsGrid(peak = peak, avg = avgKg10s, tizSec = tiz / 1000.0)
 
-        if (mvc <= 0) {
-            Button(
-                onClick = { vm.saveCurrentPeakAsMvc() },
-                enabled = peak > 0,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (peak > 0) "Save MVC (%.1f kg)".format(peak) else "Pull max effort to save MVC")
-            }
-        } else {
-            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "MVC (${hand.name.lowercase()}): %.1f kg".format(mvc),
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        if (targetKg > 0) {
-                            Text(
-                                "Target %.1f kg".format(targetKg),
-                                fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.outline
-                            )
-                        }
-                    }
-                    FilledTonalButton(
-                        onClick = { vm.saveCurrentPeakAsMvc() },
-                        enabled = peak > 0
-                    ) { Text("Update MVC") }
-                }
-            }
-        }
+        val cmvc by vm.commonMvc.collectAsState()
+        MvcComparisonCard(
+            mvc = cmvc,
+            selectedHand = hand,
+            currentPeak = peak,
+            targetKg = if (targetKg > 0) targetKg else null,
+            onSelectHand = { vm.selectHand(it) },
+            onSavePeak = { vm.saveCurrentPeakAsMvc() }
+        )
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { vm.tare() }, modifier = Modifier.weight(1f)) {
@@ -388,6 +360,143 @@ internal fun handTraceColor(h: Hand): Color = when (h) {
 }
 
 @Composable
+private fun MvcComparisonCard(
+    mvc: com.whc06.trainer.training.CommonMvc,
+    selectedHand: Hand,
+    currentPeak: Double,
+    targetKg: Double?,
+    onSelectHand: (Hand) -> Unit,
+    onSavePeak: () -> Unit
+) {
+    val left = mvc.leftKg
+    val right = mvc.rightKg
+    val both = mvc.bilateralKg
+    val asymPct = if (left > 0 && right > 0) {
+        kotlin.math.abs(left - right) / kotlin.math.max(left, right) * 100.0
+    } else null
+    val stronger = when {
+        left <= 0 || right <= 0 -> null
+        left > right -> Hand.LEFT
+        right > left -> Hand.RIGHT
+        else -> null
+    }
+    val anyMvc = (left > 0) || (right > 0) || (both > 0)
+
+    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "MVC PER HAND",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.outline,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                asymPct?.let { p ->
+                    val tag = stronger?.let { "${it.name.lowercase().replaceFirstChar { c -> c.uppercase() }} +%.0f%%".format(p) } ?: "%.0f%%".format(p)
+                    Text(
+                        "Asym $tag",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (p >= 10.0) Color(0xFFFF3B30)
+                                else if (p >= 5.0) Color(0xFFFFB627)
+                                else Color(0xFF34C759)
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MvcCell("LEFT", left, Hand.LEFT, selectedHand, onSelectHand, Modifier.weight(1f))
+                MvcCell("BOTH", both, Hand.BOTH, selectedHand, onSelectHand, Modifier.weight(1f))
+                MvcCell("RIGHT", right, Hand.RIGHT, selectedHand, onSelectHand, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    if (targetKg != null) {
+                        Text(
+                            "Target %.1f kg".format(targetKg),
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    } else if (!anyMvc) {
+                        Text(
+                            "Pull max effort to set MVC",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+                FilledTonalButton(
+                    onClick = onSavePeak,
+                    enabled = currentPeak > 0
+                ) {
+                    Text(
+                        if (anyMvc) "Update ${selectedHand.name.lowercase()}" else "Save MVC",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MvcCell(
+    label: String,
+    value: Double,
+    hand: Hand,
+    selectedHand: Hand,
+    onSelect: (Hand) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val tint = handTraceColor(hand)
+    val isSelected = hand == selectedHand
+    Surface(
+        modifier = modifier,
+        onClick = { onSelect(hand) },
+        color = if (isSelected) tint.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp),
+        border = if (isSelected) androidx.compose.foundation.BorderStroke(1.dp, tint) else null
+    ) {
+        Column(
+            Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+                letterSpacing = 0.6.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            if (value > 0) {
+                Text(
+                    "%.1f".format(value),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "kg",
+                    fontSize = 9.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    "—",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun EmptyStateCard(title: String, body: String) {
     ElevatedCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp)) {
@@ -399,29 +508,30 @@ private fun EmptyStateCard(title: String, body: String) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun HandSelector(selected: Hand, onSelect: (Hand) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val label = selected.name.lowercase().replaceFirstChar { it.uppercase() }
-    Box {
-        AssistChip(
-            onClick = { expanded = true },
-            label = { Text(label, fontSize = 12.sp) },
-            trailingIcon = {
-                Icon(
-                    Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            Hand.entries.forEach { h ->
-                DropdownMenuItem(
-                    text = { Text(h.name.lowercase().replaceFirstChar { it.uppercase() }) },
-                    onClick = { onSelect(h); expanded = false }
-                )
-            }
+private fun HandSegmented(selected: Hand, modifier: Modifier = Modifier, onSelect: (Hand) -> Unit) {
+    val ordered = listOf(Hand.LEFT, Hand.BOTH, Hand.RIGHT)
+    SingleChoiceSegmentedButtonRow(modifier) {
+        ordered.forEachIndexed { i, h ->
+            val handColor = handTraceColor(h)
+            SegmentedButton(
+                selected = h == selected,
+                onClick = { onSelect(h) },
+                shape = SegmentedButtonDefaults.itemShape(index = i, count = ordered.size),
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = handColor.copy(alpha = 0.18f),
+                    activeContentColor = handColor,
+                    activeBorderColor = handColor
+                ),
+                label = {
+                    Text(
+                        when (h) { Hand.LEFT -> "L"; Hand.RIGHT -> "R"; Hand.BOTH -> "B" },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            )
         }
     }
 }

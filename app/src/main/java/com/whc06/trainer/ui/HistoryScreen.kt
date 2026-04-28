@@ -79,6 +79,7 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
             return@Column
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item(key = "hand_compare") { HandComparisonCard(sessions) }
             byProgram.forEach { (programName, sList) ->
                 item(key = "trend_$programName") {
                     TrendCard(programName, sList)
@@ -88,6 +89,136 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HandComparisonCard(sessions: List<SessionEntity>) {
+    val left = sessions.filter { it.hand.equals("LEFT", true) }
+    val right = sessions.filter { it.hand.equals("RIGHT", true) }
+    val both = sessions.filter { it.hand.equals("BOTH", true) }
+    val bestL = left.maxOfOrNull { it.peakKgOverall } ?: 0.0
+    val bestR = right.maxOfOrNull { it.peakKgOverall } ?: 0.0
+    val bestB = both.maxOfOrNull { it.peakKgOverall } ?: 0.0
+    val asymPct = if (bestL > 0 && bestR > 0)
+        kotlin.math.abs(bestL - bestR) / kotlin.math.max(bestL, bestR) * 100.0
+    else null
+    val stronger = when {
+        bestL <= 0 || bestR <= 0 -> null
+        bestL > bestR -> "Left"
+        bestR > bestL -> "Right"
+        else -> null
+    }
+    val anyData = bestL > 0 || bestR > 0 || bestB > 0
+
+    if (!anyData) return
+
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "BEST PEAKS BY HAND",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.outline,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                asymPct?.let { p ->
+                    val tag = stronger?.let { "$it +%.0f%%".format(p) } ?: "%.0f%%".format(p)
+                    Text(
+                        "Asym $tag",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (p >= 10.0) Color(0xFFFF3B30)
+                                else if (p >= 5.0) Color(0xFFFFB627)
+                                else Color(0xFF34C759)
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                HandPeakCell("LEFT", bestL, left.size, Color(0xFF34C759), Modifier.weight(1f))
+                HandPeakCell("BOTH", bestB, both.size, Color(0xFFFF8B57), Modifier.weight(1f))
+                HandPeakCell("RIGHT", bestR, right.size, Color(0xFFFF3B30), Modifier.weight(1f))
+            }
+            if (bestL > 0 && bestR > 0) {
+                Spacer(Modifier.height(8.dp))
+                AsymmetryBar(bestL, bestR)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HandPeakCell(label: String, peak: Double, count: Int, tint: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = if (peak > 0) tint.copy(alpha = 0.14f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                label,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = tint,
+                letterSpacing = 0.6.sp
+            )
+            Spacer(Modifier.height(2.dp))
+            if (peak > 0) {
+                Text(
+                    "%.1f".format(peak),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text("kg · $count", fontSize = 9.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Text("—", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.outline)
+                Text("no data", fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AsymmetryBar(left: Double, right: Double) {
+    val total = left + right
+    val leftFrac = if (total > 0) (left / total).toFloat() else 0.5f
+    val leftColor = Color(0xFF34C759)
+    val rightColor = Color(0xFFFF3B30)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            "%.1f".format(left),
+            fontSize = 10.sp,
+            color = leftColor,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.width(36.dp)
+        )
+        Box(
+            Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp))
+        ) {
+            Row(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(leftFrac.coerceAtLeast(0.001f)).fillMaxHeight().background(leftColor))
+                Box(
+                    Modifier.weight((1f - leftFrac).coerceAtLeast(0.001f))
+                        .fillMaxHeight()
+                        .background(rightColor)
+                )
+            }
+        }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "%.1f".format(right),
+            fontSize = 10.sp,
+            color = rightColor,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 
