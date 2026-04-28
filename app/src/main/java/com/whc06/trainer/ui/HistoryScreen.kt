@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.whc06.trainer.data.MvcRecordEntity
 import com.whc06.trainer.data.SessionEntity
 import java.text.DateFormat
 import java.util.Date
@@ -32,6 +33,7 @@ import java.util.Date
 @Composable
 fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
     val sessions by vm.recentSessions.collectAsState()
+    val mvcRecords by vm.mvcRecords.collectAsState()
     val prs = remember(sessions) { computePRs(sessions) }
     val byProgram = remember(sessions) { sessions.groupBy { it.programName } }
 
@@ -80,6 +82,9 @@ fun HistoryScreen(vm: MainViewModel, onSessionClick: (SessionEntity) -> Unit) {
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item(key = "hand_compare") { HandComparisonCard(sessions) }
+            if (mvcRecords.isNotEmpty()) {
+                item(key = "mvc_history") { MvcHistoryCard(mvcRecords) }
+            }
             byProgram.forEach { (programName, sList) ->
                 item(key = "trend_$programName") {
                     TrendCard(programName, sList)
@@ -183,6 +188,148 @@ private fun HandPeakCell(label: String, peak: Double, count: Int, tint: Color, m
                 Text("no data", fontSize = 9.sp, color = MaterialTheme.colorScheme.outline)
             }
         }
+    }
+}
+
+@Composable
+private fun MvcHistoryCard(records: List<MvcRecordEntity>) {
+    val left = records.filter { it.hand.equals("LEFT", true) }
+    val right = records.filter { it.hand.equals("RIGHT", true) }
+    val both = records.filter { it.hand.equals("BOTH", true) }
+
+    fun deltaText(list: List<MvcRecordEntity>): String? {
+        if (list.size < 2) return null
+        val first = list.first().kg
+        val last = list.last().kg
+        val delta = last - first
+        return if (delta == 0.0) null
+        else "%+.1f kg".format(delta)
+    }
+
+    fun latest(list: List<MvcRecordEntity>) = list.lastOrNull()?.kg ?: 0.0
+
+    ElevatedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp)) {
+            Text(
+                "MVC PROGRESS",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.outline,
+                letterSpacing = 1.sp
+            )
+            Spacer(Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                MvcDeltaCell("LEFT", latest(left), deltaText(left), Color(0xFF34C759), Modifier.weight(1f))
+                MvcDeltaCell("BOTH", latest(both), deltaText(both), Color(0xFFFF8B57), Modifier.weight(1f))
+                MvcDeltaCell("RIGHT", latest(right), deltaText(right), Color(0xFFFF3B30), Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(12.dp))
+            MvcMultiTrendChart(left, both, right)
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                LegendDot(Color(0xFF34C759), "Left")
+                Spacer(Modifier.width(10.dp))
+                LegendDot(Color(0xFFFF8B57), "Both")
+                Spacer(Modifier.width(10.dp))
+                LegendDot(Color(0xFFFF3B30), "Right")
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "${records.size} entries",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MvcDeltaCell(label: String, latest: Double, delta: String?, tint: Color, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        color = if (latest > 0) tint.copy(alpha = 0.12f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        shape = RoundedCornerShape(8.dp)
+    ) {
+        Column(
+            Modifier.padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(label, fontSize = 9.sp, fontWeight = FontWeight.SemiBold,
+                color = tint, letterSpacing = 0.6.sp)
+            Spacer(Modifier.height(2.dp))
+            if (latest > 0) {
+                Text("%.1f".format(latest), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    delta ?: "—",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (delta == null) MaterialTheme.colorScheme.outline
+                            else if (delta.startsWith("+")) Color(0xFF34C759)
+                            else Color(0xFFFF3B30)
+                )
+            } else {
+                Text("—", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.outline)
+                Text("no data", fontSize = 10.sp, color = MaterialTheme.colorScheme.outline)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MvcMultiTrendChart(
+    left: List<MvcRecordEntity>,
+    both: List<MvcRecordEntity>,
+    right: List<MvcRecordEntity>
+) {
+    val all = (left + both + right).sortedBy { it.savedAtMs }
+    if (all.isEmpty()) return
+    val tMin = all.first().savedAtMs.toDouble()
+    val tMax = all.last().savedAtMs.toDouble()
+    val tRange = (tMax - tMin).coerceAtLeast(1.0)
+    val maxKg = all.maxOf { it.kg }.coerceAtLeast(0.1)
+    val grid = MaterialTheme.colorScheme.outlineVariant
+    val leftColor = Color(0xFF34C759)
+    val bothColor = Color(0xFFFF8B57)
+    val rightColor = Color(0xFFFF3B30)
+
+    Canvas(Modifier.fillMaxWidth().height(96.dp)) {
+        val w = size.width; val h = size.height
+        for (i in 1..3) {
+            val y = h * i / 4f
+            drawLine(grid, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+        }
+        fun drawTrace(list: List<MvcRecordEntity>, color: Color) {
+            if (list.isEmpty()) return
+            val path = Path()
+            list.forEachIndexed { i, r ->
+                val x = if (tRange == 0.0) w / 2f
+                        else (((r.savedAtMs.toDouble() - tMin) / tRange) * w).toFloat()
+                val y = h - ((r.kg / maxKg) * h * 0.92).toFloat() - h * 0.04f
+                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                drawCircle(color, radius = 4f, center = Offset(x, y))
+            }
+            if (list.size >= 2) {
+                drawPath(path, color, style = Stroke(width = 3f))
+            }
+        }
+        drawTrace(left, leftColor)
+        drawTrace(both, bothColor)
+        drawTrace(right, rightColor)
+    }
+}
+
+@Composable
+private fun LegendDot(color: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(color)
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

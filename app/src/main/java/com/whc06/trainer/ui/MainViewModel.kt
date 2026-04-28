@@ -8,6 +8,7 @@ import com.whc06.trainer.ble.BleScanner
 import com.whc06.trainer.ble.ExponentialSmoother
 import com.whc06.trainer.ble.PeakTracker
 import com.whc06.trainer.ble.WhC06Parser
+import com.whc06.trainer.data.MvcRecordEntity
 import com.whc06.trainer.data.Prefs
 import com.whc06.trainer.data.Repository
 import com.whc06.trainer.data.SessionEntity
@@ -121,6 +122,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val recentSessions: StateFlow<List<SessionEntity>> =
         repo.sessions.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val mvcRecords: StateFlow<List<MvcRecordEntity>> =
+        repo.mvcRecords.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     val programs: List<Program> get() = ProgramLibrary.all + _presets.value.map { it.toProgram() }
 
     init {
@@ -216,12 +220,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun setMvcForCurrentHand(kg: Double, source: CommonMvc.Source) {
         val curr = _commonMvc.value
-        val updated = when (_selectedHand.value) {
+        val hand = _selectedHand.value
+        val updated = when (hand) {
             Hand.BOTH -> curr.copy(bilateralKg = kg, source = source, updatedAt = System.currentTimeMillis())
             Hand.LEFT -> curr.copy(leftKg = kg, source = source, updatedAt = System.currentTimeMillis())
             Hand.RIGHT -> curr.copy(rightKg = kg, source = source, updatedAt = System.currentTimeMillis())
         }
-        viewModelScope.launch { Prefs.setMvc(getApplication(), updated) }
+        viewModelScope.launch {
+            Prefs.setMvc(getApplication(), updated)
+            if (kg > 0) repo.saveMvcRecord(hand, kg)
+        }
     }
 
     fun resetPeak() {
@@ -285,7 +293,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun clearHistory() {
-        viewModelScope.launch { repo.deleteAllSessions() }
+        viewModelScope.launch {
+            repo.deleteAllSessions()
+            repo.deleteAllMvcRecords()
+        }
     }
 
     fun clearChartHistory() {

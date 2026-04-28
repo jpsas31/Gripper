@@ -33,3 +33,11 @@ data class SessionEntity(
     val criticalForceKg: Double?,
     val wPrimeKgSec: Double?
 )
+
+@Entity(tableName = "mvc_records")
+data class MvcRecordEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val hand: String,
+    val kg: Double,
+    val savedAtMs: Long
+)

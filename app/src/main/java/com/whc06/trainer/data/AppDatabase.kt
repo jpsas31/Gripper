@@ -6,13 +6,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [RepPresetEntity::class, SessionEntity::class],
-    version = 2,
+    entities = [RepPresetEntity::class, SessionEntity::class, MvcRecordEntity::class],
+    version = 3,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun presetDao(): PresetDao
     abstract fun sessionDao(): SessionDao
+    abstract fun mvcRecordDao(): MvcRecordDao
 
     companion object {
         @Volatile private var instance: AppDatabase? = null

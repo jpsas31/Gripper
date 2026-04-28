@@ -15,6 +15,7 @@ class Repository(private val ctx: Context) {
     private val db = AppDatabase.get(ctx)
     private val presetDao = db.presetDao()
     private val sessionDao = db.sessionDao()
+    private val mvcRecordDao = db.mvcRecordDao()
     private val jsonCodec = Json { ignoreUnknownKeys = true }
     private val peaksSerializer = ListSerializer(Double.serializer())
 
@@ -23,6 +24,16 @@ class Repository(private val ctx: Context) {
     }
 
     val sessions: Flow<List<SessionEntity>> = sessionDao.observeRecent()
+    val mvcRecords: Flow<List<MvcRecordEntity>> = mvcRecordDao.observeAll()
+
+    suspend fun saveMvcRecord(hand: com.whc06.trainer.training.Hand, kg: Double) {
+        if (kg <= 0) return
+        mvcRecordDao.insert(
+            MvcRecordEntity(hand = hand.name, kg = kg, savedAtMs = System.currentTimeMillis())
+        )
+    }
+
+    suspend fun deleteAllMvcRecords() = mvcRecordDao.deleteAll()
 
     suspend fun seedPresetsIfEmpty() {
         if (presetDao.count() == 0) {

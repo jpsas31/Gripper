@@ -41,3 +41,15 @@ interface SessionDao {
     @Query("SELECT * FROM sessions WHERE id = :id")
     suspend fun byId(id: Long): SessionEntity?
 }
+
+@Dao
+interface MvcRecordDao {
+    @Query("SELECT * FROM mvc_records ORDER BY savedAtMs ASC")
+    fun observeAll(): Flow<List<MvcRecordEntity>>
+
+    @Insert
+    suspend fun insert(record: MvcRecordEntity)
+
+    @Query("DELETE FROM mvc_records")
+    suspend fun deleteAll()
+}
