@@ -34,7 +34,7 @@ import com.whc06.trainer.training.Program
 import com.whc06.trainer.training.RepPreset
 
 enum class Tab(val label: String) {
-    LIVE("Live"), PROGRAMS("Programs"), PRESETS("Presets"), PARTY("Party"), HISTORY("History"), SETTINGS("Settings")
+    LIVE("Live"), PROGRAMS("Train"), PRESETS("Presets"), PARTY("Party"), HISTORY("History"), SETTINGS("Settings")
 }
 
 private val Category.icon
@@ -107,7 +107,14 @@ fun AppRoot(
                         selected = tab == t,
                         onClick = { tab = t },
                         icon = {},
-                        label = { Text(t.label, fontSize = 11.sp) }
+                        label = {
+                            Text(
+                                t.label,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     )
                 }
             }
@@ -207,8 +214,8 @@ fun LiveScreen(vm: MainViewModel) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            HandSegmented(hand, Modifier.weight(1f)) { vm.selectHand(it) }
             GripSelector(grip) { vm.selectGrip(it) }
+            Spacer(Modifier.weight(1f))
             StableIndicator(stable, hz)
         }
 
